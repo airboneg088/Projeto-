@@ -1,0 +1,21 @@
+# Stack local e artefatos gerados
+.local
+.next
+out
+build
+coverage
+playwright-report
+test-results
+blob-report
+next-env.d.ts
+
+# Supabase CLI
+supabase/.temp
+supabase/.branches
+
+# Lockfile e diagramas renderizados
+pnpm-lock.yaml
+docs/diagramas
+
+# Markdown (docs em pt-BR escritos à mão; AGENTS.md é reescrito pelo `next dev`)
+*.md

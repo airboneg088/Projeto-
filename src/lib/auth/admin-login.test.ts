@@ -1,23 +1,72 @@
 import { describe, expect, it } from "vitest";
 
-import { adminLoginDetails, hasActiveAdminMembership } from "./admin-login";
+import {
+  adminLoginDetails,
+  hasActiveAdminMembership,
+  ipTrustFromEnv,
+  trustedClientIp,
+} from "./admin-login";
+
+const h = (values: Record<string, string>) => new Headers(values);
+
+describe("trustedClientIp", () => {
+  // R2-APP-16: o 1º valor de x-forwarded-for é escolhido pelo cliente atrás de proxy que acrescenta.
+  it("na Vercel usa x-real-ip e ignora x-forwarded-for forjado", () => {
+    const headers = h({
+      "x-forwarded-for": "203.0.113.66, 127.0.0.1",
+      "x-real-ip": "198.51.100.7",
+      "x-vercel-forwarded-for": "198.51.100.7",
+    });
+    expect(trustedClientIp(headers, "vercel")).toBe("198.51.100.7");
+  });
+
+  it("na Vercel, sem x-real-ip, usa o 1º de x-vercel-forwarded-for", () => {
+    expect(
+      trustedClientIp(h({ "x-vercel-forwarded-for": "2001:db8::1, 10.0.0.1" }), "vercel"),
+    ).toBe("2001:db8::1");
+  });
+
+  it("sem fonte confiável (local), não registra ip nenhum", () => {
+    const headers = h({ "x-forwarded-for": "203.0.113.66", "x-real-ip": "203.0.113.66" });
+    expect(trustedClientIp(headers, "none")).toBeUndefined();
+  });
+
+  it("ignora valor que não é endereço ip", () => {
+    expect(trustedClientIp(h({ "x-real-ip": "agente-forjado" }), "vercel")).toBeUndefined();
+    expect(trustedClientIp(h({ "x-real-ip": "1".repeat(500) }), "vercel")).toBeUndefined();
+    expect(trustedClientIp(h({}), "vercel")).toBeUndefined();
+  });
+});
+
+describe("ipTrustFromEnv", () => {
+  it("confia nos cabeçalhos só na Vercel", () => {
+    expect(ipTrustFromEnv({ VERCEL: "1" })).toBe("vercel");
+    expect(ipTrustFromEnv({})).toBe("none");
+    expect(ipTrustFromEnv({ VERCEL: "0" })).toBe("none");
+  });
+});
 
 describe("adminLoginDetails", () => {
-  it("usa o 1º endereço de x-forwarded-for e o user-agent", () => {
-    expect(adminLoginDetails(" 203.0.113.7 , 10.0.0.1", "Mozilla/5.0")).toEqual({
-      ip: "203.0.113.7",
+  it("usa o ip confiável e o user-agent", () => {
+    const headers = h({
+      "x-forwarded-for": "203.0.113.66, 127.0.0.1",
+      "x-real-ip": "198.51.100.7",
+      "user-agent": "Mozilla/5.0",
+    });
+    expect(adminLoginDetails(headers, "vercel")).toEqual({
+      ip: "198.51.100.7",
       user_agent: "Mozilla/5.0",
     });
+    expect(adminLoginDetails(headers, "none")).toEqual({ user_agent: "Mozilla/5.0" });
   });
 
   it("omite campos ausentes ou vazios", () => {
-    expect(adminLoginDetails(null, null)).toEqual({});
-    expect(adminLoginDetails("  ", "   ")).toEqual({});
+    expect(adminLoginDetails(h({}), "vercel")).toEqual({});
+    expect(adminLoginDetails(h({ "user-agent": "   " }), "vercel")).toEqual({});
   });
 
-  it("corta valores longos (o banco também limita)", () => {
-    const details = adminLoginDetails("1".repeat(500), "a".repeat(5000));
-    expect(details.ip).toHaveLength(64);
+  it("corta o user-agent longo (o banco também limita)", () => {
+    const details = adminLoginDetails(h({ "user-agent": "a".repeat(5000) }), "vercel");
     expect(details.user_agent).toHaveLength(300);
     expect(JSON.stringify(details).length).toBeLessThan(2048);
   });

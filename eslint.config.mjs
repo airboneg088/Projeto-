@@ -8,6 +8,22 @@ const eslintConfig = defineConfig([
   ...nextTs,
   // Desliga regras de estilo que conflitam com o Prettier (formatação é do Prettier).
   prettier,
+  {
+    // Áreas logadas: metadados só depois do guard (D70). `export const metadata` é resolvido
+    // mesmo quando o pedido é negado; use generateMetadata com areaMetadata(área).
+    files: ["src/app/(app)/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector:
+            "ExportNamedDeclaration > VariableDeclaration > VariableDeclarator[id.name='metadata']",
+          message:
+            "Área logada: use `export function generateMetadata() { return areaMetadata(área) }` (D70).",
+        },
+      ],
+    },
+  },
   globalIgnores([
     // Padrões do eslint-config-next
     ".next/**",

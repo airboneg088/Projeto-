@@ -1,8 +1,8 @@
 "use server";
 
-import type { AuthError } from "@supabase/supabase-js";
 import { redirect } from "next/navigation";
 
+import { isExpectedPasswordUpdateError, passwordUpdateErrorMessage } from "@/lib/auth/errors";
 import { AUTH_MESSAGES } from "@/lib/auth/messages";
 import { hasRecoverySession } from "@/lib/auth/recovery.server";
 import { type FieldErrors, firstFieldErrors, formText, redefinirSchema } from "@/lib/auth/schemas";
@@ -14,12 +14,6 @@ export type RedefinirState = {
   expired?: boolean;
   fieldErrors?: FieldErrors<"password" | "confirmPassword">;
 };
-
-function updateErrorMessage(error: AuthError): string {
-  if (error.code === "same_password") return AUTH_MESSAGES.samePassword;
-  if (error.code === "weak_password") return AUTH_MESSAGES.weakPassword;
-  return AUTH_MESSAGES.passwordUpdateFailed;
-}
 
 /**
  * Grava a nova senha. Exige a sessão criada pelo link de recuperação (conferida de novo aqui).
@@ -44,10 +38,10 @@ export async function updatePassword(
 
   const { error } = await supabase.auth.updateUser({ password: parsed.data.password });
   if (error) {
-    if (error.code !== "same_password" && error.code !== "weak_password") {
+    if (!isExpectedPasswordUpdateError(error)) {
       console.error("[auth] falha ao redefinir a senha", error.code ?? error.status);
     }
-    return { error: updateErrorMessage(error) };
+    return { error: passwordUpdateErrorMessage(error) };
   }
 
   const { error: signOutError } = await supabase.auth.signOut({ scope: "global" });

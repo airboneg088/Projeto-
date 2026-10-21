@@ -1,12 +1,12 @@
 "use server";
 
-import type { AuthError } from "@supabase/supabase-js";
 import { redirect } from "next/navigation";
 
 import { auditAdminLogin } from "@/lib/auth/admin-login.server";
-import { AUTH_MESSAGES } from "@/lib/auth/messages";
+import { signInErrorMessage } from "@/lib/auth/errors";
 import { safeNextPath } from "@/lib/auth/roles";
 import { type FieldErrors, firstFieldErrors, formText, loginSchema } from "@/lib/auth/schemas";
+import { SIGN_IN_FAILURE_MIN_MS, startTimer, waitUntilElapsed } from "@/lib/auth/timing";
 import { createClient } from "@/lib/supabase/server";
 
 export type LoginState = {
@@ -15,20 +15,11 @@ export type LoginState = {
   email?: string;
 };
 
-function signInErrorMessage(error: AuthError): string {
-  if (error.status === 429 || error.code === "over_request_rate_limit") {
-    return AUTH_MESSAGES.tooManyAttempts;
-  }
-  if (error.code === "user_banned") {
-    return AUTH_MESSAGES.noAccess;
-  }
-  if (error.status && error.status >= 400 && error.status < 500) {
-    return AUTH_MESSAGES.invalidCredentials;
-  }
-  return AUTH_MESSAGES.signInUnavailable;
-}
-
-/** Login com e-mail e senha. Valida no servidor e volta para `next` (só caminhos do próprio site). */
+/**
+ * Login com e-mail e senha. Valida no servidor e volta para `next` (só caminhos do próprio site,
+ * normalizados). Toda recusa do Auth tem o mesmo texto e o mesmo tempo mínimo de resposta, exista
+ * ou não a conta (D67).
+ */
 export async function signIn(_previous: LoginState, formData: FormData): Promise<LoginState> {
   const parsed = loginSchema.safeParse({
     email: formText(formData, "email"),
@@ -40,6 +31,7 @@ export async function signIn(_previous: LoginState, formData: FormData): Promise
     return { fieldErrors: firstFieldErrors(parsed.error), email: typedEmail };
   }
 
+  const startedAt = startTimer();
   const supabase = await createClient();
   const { data, error } = await supabase.auth.signInWithPassword({
     email: parsed.data.email,
@@ -49,6 +41,7 @@ export async function signIn(_previous: LoginState, formData: FormData): Promise
     if (!error.status || error.status >= 500) {
       console.error("[auth] falha no login", error.code ?? error.message);
     }
+    await waitUntilElapsed(startedAt, SIGN_IN_FAILURE_MIN_MS);
     return { error: signInErrorMessage(error), email: typedEmail };
   }
 

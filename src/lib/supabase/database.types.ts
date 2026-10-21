@@ -80,8 +80,10 @@ export type Database = {
       attempt_item_answers: {
         Row: {
           answered_at: string;
+          answered_at_device: string | null;
           attempt_id: string;
           checked: boolean;
+          client_mutation_id: string | null;
           id: string;
           note: string | null;
           task_id: string;
@@ -90,8 +92,10 @@ export type Database = {
         ComputedFields: never;
         Insert: {
           answered_at?: string;
+          answered_at_device?: string | null;
           attempt_id: string;
           checked?: boolean;
+          client_mutation_id?: string | null;
           id?: string;
           note?: string | null;
           task_id: string;
@@ -99,8 +103,10 @@ export type Database = {
         };
         Update: {
           answered_at?: string;
+          answered_at_device?: string | null;
           attempt_id?: string;
           checked?: boolean;
+          client_mutation_id?: string | null;
           id?: string;
           note?: string | null;
           task_id?: string;
@@ -535,6 +541,13 @@ export type Database = {
             referencedRelation: "tasks";
             referencedColumns: ["id"];
           },
+          {
+            foreignKeyName: "notifications_task_store_fkey";
+            columns: ["task_id", "store_id"];
+            isOneToOne: false;
+            referencedRelation: "tasks";
+            referencedColumns: ["id", "store_id"];
+          },
         ];
       };
       organizations: {
@@ -944,12 +957,15 @@ export type Database = {
       };
       task_attempts: {
         Row: {
+          abandoned_at: string | null;
+          abandoned_reason: string | null;
           attempt_number: number;
           client_mutation_id: string | null;
           id: string;
           note: string | null;
           performed_by: string;
           started_at: string;
+          started_at_device: string | null;
           store_id: string;
           submit_client_mutation_id: string | null;
           submitted_at: string | null;
@@ -957,24 +973,30 @@ export type Database = {
         };
         ComputedFields: never;
         Insert: {
+          abandoned_at?: string | null;
+          abandoned_reason?: string | null;
           attempt_number: number;
           client_mutation_id?: string | null;
           id?: string;
           note?: string | null;
           performed_by: string;
           started_at?: string;
+          started_at_device?: string | null;
           store_id: string;
           submit_client_mutation_id?: string | null;
           submitted_at?: string | null;
           task_id: string;
         };
         Update: {
+          abandoned_at?: string | null;
+          abandoned_reason?: string | null;
           attempt_number?: number;
           client_mutation_id?: string | null;
           id?: string;
           note?: string | null;
           performed_by?: string;
           started_at?: string;
+          started_at_device?: string | null;
           store_id?: string;
           submit_client_mutation_id?: string | null;
           submitted_at?: string | null;
@@ -1417,9 +1439,18 @@ export type Database = {
         };
       };
       answer_item: {
-        Args: { p_attempt_id: string; p_checked: boolean; p_note?: string; p_task_item_id: string };
-        Returns: undefined;
+        Args: {
+          p_answered_at_device?: string;
+          p_attempt_id: string;
+          p_checked: boolean;
+          p_client_mutation_id?: string;
+          p_note?: string;
+          p_task_item_id: string;
+        };
+        Returns: boolean;
       };
+      can_read_evidence: { Args: { p_path: string }; Returns: boolean };
+      can_read_reference: { Args: { p_path: string }; Returns: boolean };
       cancel_task: { Args: { p_reason: string; p_task_id: string }; Returns: undefined };
       kpi_summary: {
         Args: {
@@ -1479,7 +1510,10 @@ export type Database = {
         Args: { p_profile_id: string; p_status: Database["public"]["Enums"]["profile_status"] };
         Returns: undefined;
       };
-      start_attempt: { Args: { p_client_mutation_id: string; p_task_id: string }; Returns: string };
+      start_attempt: {
+        Args: { p_client_mutation_id: string; p_started_at_device?: string; p_task_id: string };
+        Returns: string;
+      };
       submit_attempt: {
         Args: { p_attempt_id: string; p_client_mutation_id?: string; p_note?: string };
         Returns: Database["public"]["Enums"]["task_status"];
@@ -1503,6 +1537,7 @@ export type Database = {
           group_name: string;
           nota: number;
           peso_total: number;
+          store_id: string;
           volume: number;
         }[];
       };

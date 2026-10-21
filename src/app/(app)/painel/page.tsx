@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 
 import { AreaPlaceholder } from "@/components/area-placeholder";
-import { requireArea } from "@/lib/auth/context";
+import { areaMetadata, requireArea } from "@/lib/auth/context";
 
-export const metadata: Metadata = { title: "Painel" };
+export function generateMetadata(): Promise<Metadata> {
+  return areaMetadata("painel");
+}
 
 export default async function PainelPage() {
   // Repete a checagem do layout: layout e página renderizam em paralelo.

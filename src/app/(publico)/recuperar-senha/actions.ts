@@ -2,6 +2,7 @@
 
 import { getPublicEnv } from "@/lib/env";
 import { type FieldErrors, firstFieldErrors, formText, recuperarSchema } from "@/lib/auth/schemas";
+import { PASSWORD_RESET_MIN_MS, startTimer, waitUntilElapsed } from "@/lib/auth/timing";
 import { createClient } from "@/lib/supabase/server";
 
 export type RecuperarState = {
@@ -12,7 +13,8 @@ export type RecuperarState = {
 
 /**
  * Pede o link de recuperação. A resposta é SEMPRE a mesma mensagem neutra, exista ou não a
- * conta, para não revelar quais e-mails estão cadastrados.
+ * conta, e leva sempre o mesmo tempo mínimo (o Auth demora mais quando envia o e-mail), para não
+ * revelar quais e-mails estão cadastrados (D67).
  */
 export async function requestPasswordReset(
   _previous: RecuperarState,
@@ -24,14 +26,17 @@ export async function requestPasswordReset(
     return { fieldErrors: firstFieldErrors(parsed.error), email: typedEmail };
   }
 
+  const startedAt = startTimer();
   const supabase = await createClient();
   const { NEXT_PUBLIC_SITE_URL } = getPublicEnv();
+  // O link volta para /auth/confirm, que só aceita a recuperação e sempre leva a /redefinir-senha.
   const { error } = await supabase.auth.resetPasswordForEmail(parsed.data.email, {
-    redirectTo: `${NEXT_PUBLIC_SITE_URL}/auth/confirm?next=/redefinir-senha`,
+    redirectTo: `${NEXT_PUBLIC_SITE_URL}/auth/confirm`,
   });
   if (error) {
     // Sem o e-mail no log (dado pessoal). A resposta ao usuário não muda.
     console.error("[auth] falha ao pedir recuperação de senha", error.code ?? error.status);
   }
+  await waitUntilElapsed(startedAt, PASSWORD_RESET_MIN_MS);
   return { sent: true, email: typedEmail };
 }

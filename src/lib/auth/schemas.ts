@@ -5,19 +5,46 @@ import { z } from "zod";
  * e SEMPRE de novo no servidor, dentro das Server Actions.
  */
 
+// Sem o modo JIT do zod 4: ele testa `new Function("")` para compilar o parser, e a CSP do app não
+// tem 'unsafe-eval' (no navegador isso vira uma violação de CSP reportada). Os esquemas são
+// pequenos; a diferença de desempenho não aparece.
+z.config({ jitless: true });
+
 const MSG = {
   emailRequired: "Informe o e-mail.",
   emailInvalid: "Confira o e-mail. Ele precisa ter o formato nome@exemplo.com.",
   passwordRequired: "Informe a senha.",
   passwordMin: "A senha precisa ter pelo menos 8 caracteres.",
   passwordMax: "A senha pode ter no máximo 72 caracteres.",
+  passwordBytes:
+    "A senha pode ter no máximo 72 caracteres (letras com acento, ç e emojis contam como mais de um).",
+  passwordLetter: "A senha precisa ter pelo menos uma letra de A a Z (sem acento).",
+  passwordDigit: "A senha precisa ter pelo menos um número.",
   confirmRequired: "Repita a nova senha.",
   mismatch: "As senhas não são iguais. Digite a mesma senha nos dois campos.",
 } as const;
 
 export const PASSWORD_MIN_LENGTH = 8;
-/** Limite do GoTrue (bcrypt usa no máximo 72 bytes). */
+/** Limite do GoTrue (bcrypt usa no máximo 72 bytes; o GoTrue recusa senha maior). */
 export const PASSWORD_MAX_LENGTH = 72;
+
+/** Tamanho da senha em bytes UTF-8 (o limite do Auth é em bytes, não em caracteres). */
+export function utf8Length(value: string): number {
+  return new TextEncoder().encode(value).length;
+}
+
+/**
+ * Senha nova: as mesmas regras do Auth (`minimum_password_length = 8` e
+ * `password_requirements = "letters_digits"` no supabase/config.toml; D65). "Letra" para o Auth é
+ * só de A a Z: "ç" e letras acentuadas não contam.
+ */
+export const newPasswordField = z
+  .string({ error: MSG.passwordRequired })
+  .min(PASSWORD_MIN_LENGTH, { error: MSG.passwordMin })
+  .max(PASSWORD_MAX_LENGTH, { error: MSG.passwordMax })
+  .refine((value) => utf8Length(value) <= PASSWORD_MAX_LENGTH, { error: MSG.passwordBytes })
+  .refine((value) => /[A-Za-z]/.test(value), { error: MSG.passwordLetter })
+  .refine((value) => /[0-9]/.test(value), { error: MSG.passwordDigit });
 
 export const emailField = z
   .string({ error: MSG.emailRequired })
@@ -44,10 +71,7 @@ export type RecuperarInput = z.infer<typeof recuperarSchema>;
 
 export const redefinirSchema = z
   .object({
-    password: z
-      .string({ error: MSG.passwordRequired })
-      .min(PASSWORD_MIN_LENGTH, { error: MSG.passwordMin })
-      .max(PASSWORD_MAX_LENGTH, { error: MSG.passwordMax }),
+    password: newPasswordField,
     confirmPassword: z
       .string({ error: MSG.confirmRequired })
       .min(1, { error: MSG.confirmRequired }),
@@ -65,6 +89,22 @@ export function formText(formData: FormData, name: string): string {
 }
 
 export type FieldErrors<T extends string> = Partial<Record<T, string>>;
+
+/**
+ * Valida no cliente, com o mesmo esquema do servidor, os campos `fields` do formulário (zod no
+ * cliente e no servidor; D91). Devolve os erros por campo, ou `null` se estiver tudo certo. O
+ * servidor valida de novo sempre (a Server Action não confia no cliente).
+ */
+export function validateFormFields<T extends string>(
+  schema: z.ZodType,
+  formData: FormData,
+  fields: readonly T[],
+): FieldErrors<T> | null {
+  const parsed = schema.safeParse(
+    Object.fromEntries(fields.map((field) => [field, formText(formData, field)])),
+  );
+  return parsed.success ? null : firstFieldErrors<T>(parsed.error);
+}
 
 /** Primeira mensagem de erro de cada campo. */
 export function firstFieldErrors<T extends string>(error: z.ZodError): FieldErrors<T> {

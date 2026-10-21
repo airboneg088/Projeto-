@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 import { Notice } from "@/components/ui/notice";
-import { AUTH_MESSAGES } from "@/lib/auth/messages";
+import { AUTH_MESSAGES, lookupMessage } from "@/lib/auth/messages";
 import { safeNextPath } from "@/lib/auth/roles";
 
 import { LoginForm } from "./login-form";
@@ -11,6 +11,7 @@ export const metadata: Metadata = { title: "Entrar" };
 const ERRORS: Readonly<Record<string, string>> = {
   "sem-acesso": AUTH_MESSAGES.noAccess,
   "link-invalido": AUTH_MESSAGES.invalidLink,
+  "outro-navegador": AUTH_MESSAGES.linkOtherBrowser,
 };
 
 const NOTICES: Readonly<Record<string, string>> = {
@@ -26,8 +27,8 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   const erro = single(params.erro);
   const aviso = single(params.aviso);
   const next = safeNextPath(single(params.next));
-  const errorMessage = erro ? ERRORS[erro] : undefined;
-  const noticeMessage = aviso ? NOTICES[aviso] : undefined;
+  const errorMessage = lookupMessage(ERRORS, erro);
+  const noticeMessage = lookupMessage(NOTICES, aviso);
 
   return (
     <>

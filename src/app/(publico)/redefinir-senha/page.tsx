@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { AUTH_MESSAGES } from "@/lib/auth/messages";
-import { hasRecoverySession } from "@/lib/auth/recovery.server";
+import { getRecoverySession } from "@/lib/auth/recovery.server";
 import { createClient } from "@/lib/supabase/server";
 
 import { RedefinirForm } from "./redefinir-form";
@@ -11,9 +11,9 @@ export const metadata: Metadata = { title: "Nova senha" };
 
 export default async function RedefinirSenhaPage() {
   const supabase = await createClient();
-  const allowed = await hasRecoverySession(supabase);
+  const recovery = await getRecoverySession(supabase);
 
-  if (!allowed) {
+  if (!recovery) {
     return (
       <>
         <h1 className="mb-2 text-2xl font-semibold">Criar nova senha</h1>
@@ -33,7 +33,19 @@ export default async function RedefinirSenhaPage() {
   return (
     <>
       <h1 className="mb-2 text-2xl font-semibold">Criar nova senha</h1>
-      <p className="mb-6 text-text-muted">Escolha uma senha nova para a sua conta.</p>
+      <p className="mb-6 text-text-muted">
+        {recovery.email ? (
+          <>
+            Escolha uma senha nova para a conta{" "}
+            <strong className="break-all text-text" data-testid="conta-recuperacao">
+              {recovery.email}
+            </strong>
+            .
+          </>
+        ) : (
+          "Escolha uma senha nova para a sua conta."
+        )}
+      </p>
       <RedefinirForm />
     </>
   );

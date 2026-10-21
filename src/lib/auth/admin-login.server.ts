@@ -5,15 +5,17 @@ import { headers } from "next/headers";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
-import { adminLoginDetails, hasActiveAdminMembership } from "./admin-login";
+import { adminLoginDetails, hasActiveAdminMembership, ipTrustFromEnv } from "./admin-login";
 
 type ServerClient = Awaited<ReturnType<typeof createClient>>;
 
 /**
- * Registra no audit_log o login de quem tem vínculo vigente de admin (exigência de LGPD/segurança:
- * "login de admin"). Roda no servidor logo depois do login. O registro é gravado por
- * `log_admin_login`, que só a chave secreta executa: o navegador não consegue gravar um login
- * inventado (com ip/user_agent escolhidos por ele) nem encher a trilha. O banco confere de novo o
+ * Complementa o registro do login de admin com o contexto que só o servidor conhece: o ip de fonte
+ * confiável (D68) e o user_agent (`admin_login_context` no audit_log). O login em si ("login de
+ * admin", exigência de LGPD/segurança) é gravado pelo próprio Auth, pelo hook Custom Access Token
+ * (`private.custom_access_token_hook`, D79), inclusive quando alguém entra direto na API pública do
+ * Auth sem passar por este app. O contexto é gravado por `log_admin_login`, que só a chave secreta
+ * executa: o navegador não grava um contexto inventado nem enche a trilha. O banco confere de novo o
  * vínculo de admin, aceita só ip válido e user_agent curto e grava no máximo um registro por admin
  * por minuto. Falha ao registrar não impede o login (fica no log do servidor).
  */
@@ -29,17 +31,16 @@ export async function auditAdminLogin(supabase: ServerClient, userId: string): P
   }
   if (!hasActiveAdminMembership(data, new Date())) return;
 
-  const requestHeaders = await headers();
-  const details = adminLoginDetails(
-    requestHeaders.get("x-forwarded-for"),
-    requestHeaders.get("user-agent"),
-  );
+  const details = adminLoginDetails(await headers(), ipTrustFromEnv(process.env));
   const { error: logError } = await createAdminClient().rpc("log_admin_login", {
     p_actor_id: userId,
     p_ip: details.ip,
     p_user_agent: details.user_agent,
   });
   if (logError) {
-    console.error("[auth] falha ao registrar login de admin", logError.code ?? logError.message);
+    console.error(
+      "[auth] falha ao registrar o contexto do login de admin",
+      logError.code ?? logError.message,
+    );
   }
 }

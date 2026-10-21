@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { User } from "@supabase/supabase-js";
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { cache } from "react";
 
@@ -8,7 +9,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { Tables } from "@/lib/supabase/database.types";
 
 import { type AccessDecision, decideAccess, isMembershipActive, rolesFrom } from "./access";
-import { type Area, type Role } from "./roles";
+import { AREA_LABEL, type Area, type Role } from "./roles";
 
 export type Profile = Pick<Tables<"profiles">, "id" | "full_name" | "status">;
 export type Membership = Pick<
@@ -134,4 +135,15 @@ export async function redirectToHome(): Promise<never> {
   await enforce(decideAccess(accessInput(ctx), null));
   // decideAccess(…, null) nunca devolve "ok"; por garantia, volta ao login.
   redirect("/login");
+}
+
+/**
+ * Metadados (título) de uma área, só depois do mesmo guard da página (D70). O Next resolve os
+ * metadados em paralelo com o layout; com `export const metadata`, um pedido negado (redirect)
+ * ainda recebia o título da área no HTML e no RSC. Use em `generateMetadata` de toda página de
+ * área, e nunca leia dados ali sem passar por aqui.
+ */
+export async function areaMetadata(area: Area): Promise<Metadata> {
+  await requireArea(area);
+  return { title: AREA_LABEL[area] };
 }

@@ -5,6 +5,7 @@ import { loginPathFor } from "@/lib/auth/access";
 import { isLoginPath, isProtectedPath } from "@/lib/auth/paths";
 import { getPublicEnv } from "@/lib/env";
 import { buildCsp, createNonce } from "@/lib/security/csp";
+import { sessionCookieOptions } from "@/lib/supabase/cookies";
 
 import type { Database } from "@/lib/supabase/database.types";
 
@@ -60,7 +61,7 @@ export async function proxy(request: NextRequest) {
           Object.assign(sessionHeaders, headers);
           response = NextResponse.next({ request: { headers: forwardHeaders() } });
           for (const { name, value, options } of pendingCookies.values()) {
-            response.cookies.set(name, value, options);
+            response.cookies.set(name, value, sessionCookieOptions(options));
           }
           for (const [key, value] of Object.entries(sessionHeaders)) {
             response.headers.set(key, value);
@@ -120,11 +121,14 @@ function redirectResponse(request: NextRequest, to: URL): NextResponse {
 export const config = {
   matcher: [
     /*
-     * Todas as rotas, exceto:
-     * - _next/static e _next/image (arquivos do build e imagens otimizadas);
-     * - arquivos estáticos na raiz de public/ e ícones de metadados (favicon.ico, icon.svg…).
-     * Rotas com extensão em subpastas continuam passando pelo proxy.
+     * Todas as rotas, exceto (D69):
+     * - _next/static/ (arquivos do build) e exatamente /_next/image (otimizador de imagens, que só
+     *   responde imagem ou texto);
+     * - /icon.svg (ícone de metadados de src/app/icon.svg).
+     * Só arquivos que EXISTEM ficam de fora, e cada exclusão é ancorada no fim ($): sem âncora,
+     * /_next/imagex, /_next/image-foo/bar etc. pulavam o proxy e o 404 em HTML saía sem CSP (D89).
+     * Arquivo novo em public/ (robots.txt, manifest, service worker) entra nesta lista.
      */
-    "/((?!_next/static|_next/image|[^/]+\\.(?:ico|png|svg|jpg|jpeg|gif|webp|avif|txt|xml|webmanifest|js|css|map|woff2?)$).*)",
+    "/((?!_next/static/|_next/image$|icon\\.svg$).*)",
   ],
 };

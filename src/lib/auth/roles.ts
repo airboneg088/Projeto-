@@ -84,6 +84,8 @@ export function accessibleAreas(roles: readonly Role[]): Area[] {
 const CONTROL_CHARS = /[\u0000-\u001f\u007f-\u009f]/;
 const MAX_NEXT_LENGTH = 2048;
 const MAX_DECODE_ROUNDS = 5;
+/** Origem fictícia só para resolver o caminho; nunca sai desta função. */
+const PROBE_ORIGIN = "https://app.invalid";
 
 function isSafeRelativePath(path: string): boolean {
   if (!path.startsWith("/")) return false;
@@ -91,42 +93,63 @@ function isSafeRelativePath(path: string): boolean {
   if (path.startsWith("//")) return false;
   if (path.includes("\\")) return false;
   if (CONTROL_CHARS.test(path)) return false;
-  return true;
+  // Resolvido como o navegador resolve ("." e ".."), continua na mesma origem e sem "//" no início.
+  try {
+    const resolved = new URL(path, PROBE_ORIGIN);
+    return resolved.origin === PROBE_ORIGIN && !resolved.pathname.startsWith("//");
+  } catch {
+    return false;
+  }
 }
 
 /**
- * Valida o parâmetro `next` de redirecionamento. Aceita só caminhos relativos do próprio site
- * (começam com uma única "/"). Rejeita "//", "/\", esquemas ("https:", "javascript:"),
- * caracteres de controle e as mesmas armadilhas escondidas em codificação percentual
- * (ex.: "/%2F%2Fevil.com"). Em qualquer dúvida, devolve `fallback`.
+ * Confere o valor e cada camada decodificada (pega "/%2F%2Fevil.com", "/%5Cevil.com" e
+ * "/.%2F/evil.com", que decodificado vira "/.//evil.com").
  */
-export function safeNextPath(input: unknown, fallback = "/"): string {
-  if (typeof input !== "string") return fallback;
-  if (input.length === 0 || input.length > MAX_NEXT_LENGTH) return fallback;
-
-  // Confere o valor bruto e cada camada decodificada.
-  let current = input;
+function hasSafeLayers(value: string): boolean {
+  let current = value;
   for (let round = 0; round <= MAX_DECODE_ROUNDS; round += 1) {
-    if (!isSafeRelativePath(current)) return fallback;
+    if (!isSafeRelativePath(current)) return false;
     let decoded: string;
     try {
       decoded = decodeURIComponent(current);
     } catch {
-      return fallback;
+      return false;
     }
-    if (decoded === current) break;
-    if (round === MAX_DECODE_ROUNDS) return fallback;
+    if (decoded === current) return true;
+    if (round === MAX_DECODE_ROUNDS) return false;
     current = decoded;
   }
+  return false;
+}
 
-  // Última defesa: o navegador tem de resolver para a mesma origem.
+/**
+ * Valida o parâmetro `next` de redirecionamento. Aceita só caminhos do próprio site (começam com
+ * uma única "/") e devolve o caminho **normalizado** pelo mesmo algoritmo do navegador (WHATWG
+ * URL), nunca o texto recebido:
+ * - resolve os segmentos "." e ".." (inclusive "%2E"): "/.//evil.com" e "/x/..//evil.com" viram
+ *   "//evil.com", que o navegador abriria como outro domínio, e são recusados;
+ * - recusa "//", "\", esquemas ("https:", "javascript:"), caracteres de controle e as mesmas
+ *   armadilhas em codificação percentual ("/%2F%2Fevil.com", "/%5Cevil.com");
+ * - codifica em ASCII o que não for ASCII ("/hoje。" → "/hoje%E3%80%82"), então o valor sempre
+ *   cabe num cabeçalho HTTP (Location, x-action-redirect).
+ * Em qualquer dúvida, devolve `fallback`.
+ */
+export function safeNextPath(input: unknown, fallback = "/"): string {
+  if (typeof input !== "string") return fallback;
+  if (input.length === 0 || input.length > MAX_NEXT_LENGTH) return fallback;
+  if (!hasSafeLayers(input)) return fallback;
+
+  let resolved: URL;
   try {
-    const base = "http://ede.invalid";
-    const resolved = new URL(input, base);
-    if (resolved.origin !== base) return fallback;
+    resolved = new URL(input, PROBE_ORIGIN);
   } catch {
     return fallback;
   }
+  if (resolved.origin !== PROBE_ORIGIN) return fallback;
 
-  return input;
+  const normalized = `${resolved.pathname}${resolved.search}${resolved.hash}`;
+  // O caminho já resolvido passa pelas mesmas regras (pega "/.//evil.com" → "//evil.com").
+  if (!hasSafeLayers(normalized) || normalized.length > MAX_NEXT_LENGTH) return fallback;
+  return normalized;
 }

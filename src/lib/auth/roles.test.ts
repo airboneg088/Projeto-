@@ -110,6 +110,28 @@ describe("safeNextPath", () => {
     expect(safeNextPath(input)).toBe("/");
   });
 
+  // R2-APP-01: segmentos "." e ".." que o navegador resolve para "//evil.com" (outro domínio).
+  // Os 5 primeiros vieram do revisor (Chromium saiu para http://evil.com/ depois do login).
+  it.each([
+    "/.//evil.com",
+    "/x/..//evil.com",
+    "/%2E//evil.com",
+    "/a/b/../..//evil.com",
+    "/.%2e//evil.com",
+    "/..//evil.com",
+    "/%2e%2e//evil.com",
+    "/%2E%2E//evil.com",
+    "/././/evil.com",
+    "/hoje/../..//evil.com",
+    "/.//evil.com/hoje?x=1#y",
+    "/.///evil.com",
+    "/./\\evil.com",
+    "/.%2F/evil.com",
+    "/.//%65vil.com",
+  ])("rejeita o truque de ponto %j", (input) => {
+    expect(safeNextPath(input)).toBe("/");
+  });
+
   it.each(["/", "/hoje", "/gerente", "/ok?x=1", "/painel?loja=primavera&periodo=7d#topo"])(
     "mantém %j",
     (input) => {
@@ -117,11 +139,60 @@ describe("safeNextPath", () => {
     },
   );
 
+  it.each([
+    ["/hoje/./tarefa", "/hoje/tarefa"],
+    ["/gerente/x/../fila", "/gerente/fila"],
+    ["/../hoje", "/hoje"],
+    ["/%2E/hoje", "/hoje"],
+  ])("devolve %j normalizado como %j (mesmo destino, sem o texto bruto)", (input, expected) => {
+    expect(safeNextPath(input)).toBe(expected);
+  });
+
+  // R2-APP-10: fora do Latin-1 o valor não cabe num cabeçalho HTTP (o login e o /auth/confirm
+  // davam 500). Normalizado, sai em ASCII com codificação percentual.
+  it.each([
+    ["/hoje。", "/hoje%E3%80%82"],
+    ["/hoje?busca=ação", "/hoje?busca=a%C3%A7%C3%A3o"],
+    ["/gerente#seção", "/gerente#se%C3%A7%C3%A3o"],
+    ["/hoje\u00a0", "/hoje%C2%A0"],
+  ])("codifica %j em ASCII como %j", (input, expected) => {
+    const result = safeNextPath(input);
+    expect(result).toBe(expected);
+    expect(/^[\x21-\x7e]*$/.test(result)).toBe(true);
+  });
+
+  it("é idempotente (o valor devolvido passa de novo igual)", () => {
+    for (const input of ["/hoje。", "/hoje/./x", "/painel?a=b#c", "/.//evil.com", "/ok?x=%2F"]) {
+      const once = safeNextPath(input);
+      expect(safeNextPath(once)).toBe(once);
+    }
+  });
+
+  it("nunca devolve algo que o navegador resolva para outra origem", () => {
+    const base = "https://ede.exemplo";
+    const attacks = [
+      "/.//evil.com",
+      "/x/..//evil.com",
+      "/%2E//evil.com",
+      "/a/b/../..//evil.com",
+      "/.%2e//evil.com",
+      "/hoje。",
+      "/\u3002\u3002//evil.com",
+      "/\uff0f\uff0fevil.com",
+    ];
+    for (const input of attacks) {
+      const result = safeNextPath(input);
+      expect(new URL(result, base).origin, input).toBe(base);
+      expect(result.startsWith("//"), input).toBe(false);
+    }
+  });
+
   it("usa o fallback para valores que não são texto ou longos demais", () => {
     expect(safeNextPath(undefined)).toBe("/");
     expect(safeNextPath(null)).toBe("/");
     expect(safeNextPath(["/hoje"])).toBe("/");
     expect(safeNextPath(`/${"a".repeat(3000)}`)).toBe("/");
+    expect(safeNextPath(`/${"ç".repeat(1000)}`)).toBe("/");
     expect(safeNextPath("//evil.com", "/login")).toBe("/login");
   });
 });

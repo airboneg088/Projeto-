@@ -5,6 +5,7 @@ import { cookies } from "next/headers";
 
 import { getPublicEnv } from "@/lib/env";
 
+import { sessionCookieOptions } from "./cookies";
 import type { Database } from "./database.types";
 
 /**
@@ -30,7 +31,7 @@ export async function createClient() {
         setAll(cookiesToSet) {
           try {
             for (const { name, value, options } of cookiesToSet) {
-              cookieStore.set(name, value, options);
+              cookieStore.set(name, value, sessionCookieOptions(options));
             }
           } catch {
             // Server Components não podem gravar cookies. O proxy (src/proxy.ts) renova a

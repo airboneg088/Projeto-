@@ -1,34 +1,58 @@
 #!/usr/bin/env node
 // Confere que segredos não vazam para o código do navegador (pnpm check:secrets). Sem dependências.
 //
-// Regras:
-//  1. "SUPABASE_SECRET_KEY" e "service_role" só podem aparecer em src/lib/supabase/admin.ts e
-//     src/lib/env.server.ts, e esses dois arquivos têm de começar com `import "server-only"`.
-//  2. Nenhum arquivo "use client" pode importar admin.ts ou env.server.ts, nem direta nem
+// Regras (D71):
+//  1. Nomes de segredo ("service_role", "secret_key", sem diferenciar maiúsculas, com "_", "-" ou
+//     nada no meio: SUPABASE_SERVICE_ROLE_KEY, supabaseSecretKey…) só podem aparecer em
+//     src/lib/supabase/admin.ts e src/lib/env.server.ts, e esses dois arquivos têm de começar com
+//     `import "server-only"`. Vale para src/ e para next.config.*.
+//  2. next.config.* não pode ter bloco `env`: tudo o que entra nele é embutido no código do build,
+//     inclusive no do navegador.
+//  3. Nenhum arquivo "use client" pode importar admin.ts ou env.server.ts, nem direta nem
 //     indiretamente (a busca para em arquivos "use server", que viram referências no cliente).
-//  3. Nenhuma variável NEXT_PUBLIC_* pode ter SECRET ou SERVICE no nome.
-//  4. Se existir .next/static (build feito), o valor da chave secreta não pode aparecer nele.
+//  4. Quem pode importar: env.server.ts só por admin.ts; admin.ts só por arquivos `*.server.ts`
+//     que começam com `import "server-only"`. Assim um Server Component não recebe o segredo para
+//     repassá-lo como prop a um Client Component (o que o mandaria no HTML/RSC).
+//  5. Nenhuma variável NEXT_PUBLIC_* pode ter SECRET ou SERVICE no nome.
+//  6. Se existir build (.next), o valor da chave secreta não pode aparecer em nenhum arquivo dele
+//     (fora .next/cache) e .next/static não pode citar SUPABASE_SECRET_KEY/SUPABASE_SERVICE_ROLE_KEY.
+//     Sem o valor da chave (nem no ambiente nem no .env.local), em CI (CI=true) isso é erro; fora
+//     de CI, aviso.
+// O HTML e o RSC servidos de verdade são varridos pelo E2E (e2e/segredos.spec.ts).
+//
+// Uso: node scripts/check-secrets.mjs [--root <pasta>]   (--root é usado pelo autoteste)
 
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, extname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const args = process.argv.slice(2);
+const rootIdx = args.indexOf("--root");
+const ROOT =
+  rootIdx >= 0 && args[rootIdx + 1]
+    ? resolve(args[rootIdx + 1])
+    : resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const SRC = join(ROOT, "src");
-const ALLOWED = new Set(["src/lib/supabase/admin.ts", "src/lib/env.server.ts"]);
+const ADMIN = "src/lib/supabase/admin.ts";
+const ENV_SERVER = "src/lib/env.server.ts";
+const ALLOWED = new Set([ADMIN, ENV_SERVER]);
 const SERVER_ONLY_TARGETS = new Set(["src/lib/supabase/admin", "src/lib/env.server"]);
-const FORBIDDEN_WORDS = ["SUPABASE_SECRET_KEY", "service_role"];
+const SECRET_NAME_RE = /service[_-]?role|secret[_-]?key/gi;
+const SECRET_ENV_NAME_RE = /SUPABASE_(?:SECRET|SERVICE_ROLE)_KEY/g;
 const CODE_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".mts", ".cts"];
 const TEXT_EXTENSIONS = new Set([...CODE_EXTENSIONS, ".css", ".json", ".md", ".html", ".svg"]);
+const CONFIG_NAMES = ["next.config.ts", "next.config.mts", "next.config.mjs", "next.config.js"];
 
 const problems = [];
+const warnings = [];
 const rel = (file) => relative(ROOT, file).split(sep).join("/");
 
-function walk(dir, files = []) {
+function walk(dir, files = [], skip = () => false) {
   if (!existsSync(dir)) return files;
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = join(dir, entry.name);
-    if (entry.isDirectory()) walk(full, files);
+    if (skip(full)) continue;
+    if (entry.isDirectory()) walk(full, files, skip);
     else if (entry.isFile()) files.push(full);
   }
   return files;
@@ -38,11 +62,14 @@ function lineOf(text, index) {
   return text.slice(0, index).split("\n").length;
 }
 
+function stripComments(text) {
+  return text.replace(/^﻿/, "").replace(/\/\*[\s\S]*?\*\/|^\s*\/\/.*$/gm, "");
+}
+
 /** Primeira instrução do arquivo (ignora linhas vazias e comentários). */
 function firstStatement(text) {
-  const withoutComments = text.replace(/^﻿/, "").replace(/\/\*[\s\S]*?\*\/|^\s*\/\/.*$/gm, "");
   return (
-    withoutComments
+    stripComments(text)
       .split("\n")
       .find((line) => line.trim() !== "")
       ?.trim() ?? ""
@@ -59,22 +86,26 @@ function hasDirective(text, directive) {
   );
 }
 
+const startsWithServerOnly = (text) => {
+  const first = firstStatement(text);
+  return first === `import "server-only";` || first === `import 'server-only';`;
+};
+
 // ---------------------------------------------------------------- regra 1
 
 const srcFiles = walk(SRC).filter((file) => TEXT_EXTENSIONS.has(extname(file)));
 const contents = new Map(srcFiles.map((file) => [file, readFileSync(file, "utf8")]));
+const configFiles = CONFIG_NAMES.map((name) => join(ROOT, name)).filter(existsSync);
+for (const file of configFiles) contents.set(file, readFileSync(file, "utf8"));
 
-for (const [file, text] of contents) {
+for (const file of [...srcFiles, ...configFiles]) {
   const name = rel(file);
   if (ALLOWED.has(name)) continue;
-  for (const word of FORBIDDEN_WORDS) {
-    let index = text.indexOf(word);
-    while (index !== -1) {
-      problems.push(
-        `${name}:${lineOf(text, index)} contém "${word}" (permitido só em ${[...ALLOWED].join(" e ")})`,
-      );
-      index = text.indexOf(word, index + word.length);
-    }
+  const text = contents.get(file);
+  for (const match of text.matchAll(SECRET_NAME_RE)) {
+    problems.push(
+      `${name}:${lineOf(text, match.index)} contém "${match[0]}" (nome de segredo; permitido só em ${[...ALLOWED].join(" e ")})`,
+    );
   }
 }
 
@@ -84,15 +115,26 @@ for (const name of ALLOWED) {
     problems.push(`${name} não existe (esperado como único ponto de acesso à chave secreta)`);
     continue;
   }
-  const first = firstStatement(readFileSync(file, "utf8"));
-  if (first !== `import "server-only";` && first !== `import 'server-only';`) {
+  if (!startsWithServerOnly(readFileSync(file, "utf8"))) {
     problems.push(
-      `${name} precisa começar com import "server-only"; (começa com: ${first || "vazio"})`,
+      `${name} precisa começar com import "server-only"; (começa com: ${firstStatement(readFileSync(file, "utf8")) || "vazio"})`,
     );
   }
 }
 
 // ---------------------------------------------------------------- regra 2
+
+for (const file of configFiles) {
+  const text = stripComments(contents.get(file));
+  const match = /(^|[{,\s])env\s*:/m.exec(text);
+  if (match) {
+    problems.push(
+      `${rel(file)} tem bloco \`env\` (é embutido no build, inclusive no navegador); use variáveis NEXT_PUBLIC_* só para valores públicos`,
+    );
+  }
+}
+
+// ---------------------------------------------------------------- regras 3 e 4
 
 const IMPORT_RE =
   /(?:import|export)\s+(?:type\s+)?(?:[\w*{}\s,]+\s+from\s+)?["']([^"']+)["']|import\(\s*["']([^"']+)["']\s*\)|require\(\s*["']([^"']+)["']\s*\)/g;
@@ -156,15 +198,33 @@ for (const entry of clientFiles) {
   }
 }
 
-// ---------------------------------------------------------------- regra 3
+for (const file of codeFiles) {
+  const name = rel(file);
+  const text = contents.get(file) ?? "";
+  for (const spec of specifiers(text)) {
+    const target = resolveSpecifier(file, spec);
+    if (!target) continue;
+    const targetName = withoutExtension(rel(target));
+    if (targetName === withoutExtension(ENV_SERVER) && name !== ADMIN) {
+      problems.push(`${name} importa ${ENV_SERVER} (só ${ADMIN} pode ler os segredos)`);
+    }
+    if (targetName === withoutExtension(ADMIN)) {
+      const okServerModule = /\.server\.[cm]?[jt]sx?$/.test(name) && startsWithServerOnly(text);
+      if (!okServerModule) {
+        problems.push(
+          `${name} importa ${ADMIN} (só módulos *.server.ts com import "server-only" podem, para o cliente admin não chegar a páginas e componentes)`,
+        );
+      }
+    }
+  }
+}
+
+// ---------------------------------------------------------------- regra 5
 
 const PUBLIC_SECRET_RE = /NEXT_PUBLIC_[A-Z0-9_]*(?:SECRET|SERVICE)[A-Z0-9_]*/g;
 const envFiles = readdirSync(ROOT)
   .filter((name) => name.startsWith(".env"))
   .map((name) => join(ROOT, name));
-const configFiles = ["next.config.ts", "next.config.mjs", "next.config.js"]
-  .map((name) => join(ROOT, name))
-  .filter(existsSync);
 
 for (const file of [...srcFiles, ...envFiles, ...configFiles]) {
   const text = contents.get(file) ?? readFileSync(file, "utf8");
@@ -180,32 +240,45 @@ for (const name of Object.keys(process.env)) {
   }
 }
 
-// ---------------------------------------------------------------- regra 4
+// ---------------------------------------------------------------- regra 6
 
 function secretValues() {
   const values = new Set();
-  if (process.env.SUPABASE_SECRET_KEY) values.add(process.env.SUPABASE_SECRET_KEY.trim());
+  for (const key of ["SUPABASE_SECRET_KEY", "SUPABASE_SERVICE_ROLE_KEY"]) {
+    if (process.env[key]) values.add(process.env[key].trim());
+  }
   const envLocal = join(ROOT, ".env.local");
   if (existsSync(envLocal)) {
     for (const line of readFileSync(envLocal, "utf8").split(/\r?\n/)) {
-      const match = /^\s*SUPABASE_SECRET_KEY\s*=\s*(.+?)\s*$/.exec(line);
+      const match = /^\s*SUPABASE_(?:SECRET|SERVICE_ROLE)_KEY\s*=\s*(.+?)\s*$/.exec(line);
       if (match) values.add(match[1].replace(/^["']|["']$/g, ""));
     }
   }
   return [...values].filter((value) => value.length >= 20);
 }
 
-const staticDir = join(ROOT, ".next", "static");
-let scannedStatic = 0;
-if (existsSync(staticDir)) {
+const buildDir = join(ROOT, ".next");
+const staticDir = join(buildDir, "static");
+const isCi = /^(1|true)$/i.test(process.env.CI ?? "");
+let scannedBuild = 0;
+if (existsSync(buildDir)) {
+  const buildFiles = walk(buildDir, [], (full) => full === join(buildDir, "cache"));
+  for (const file of buildFiles) {
+    if (!file.startsWith(staticDir + sep)) continue;
+    const text = readFileSync(file, "latin1");
+    for (const match of text.matchAll(SECRET_ENV_NAME_RE)) {
+      problems.push(`${rel(file)} cita ${match[0]} (código do navegador)`);
+    }
+  }
   const secrets = secretValues();
   if (secrets.length === 0) {
-    console.warn(
-      "[check:secrets] aviso: sem SUPABASE_SECRET_KEY no ambiente nem no .env.local; o build não foi varrido.",
-    );
+    const message =
+      "sem SUPABASE_SECRET_KEY no ambiente nem no .env.local: o valor da chave não foi procurado no build";
+    if (isCi) problems.push(`${message} (em CI é obrigatório)`);
+    else warnings.push(message);
   } else {
-    for (const file of walk(staticDir)) {
-      scannedStatic += 1;
+    for (const file of buildFiles) {
+      scannedBuild += 1;
       const text = readFileSync(file, "latin1");
       for (const secret of secrets) {
         if (text.includes(secret)) problems.push(`${rel(file)} contém o valor da chave secreta`);
@@ -216,6 +289,8 @@ if (existsSync(staticDir)) {
 
 // ---------------------------------------------------------------- resultado
 
+for (const warning of warnings) console.warn(`[check:secrets] aviso: ${warning}.`);
+
 if (problems.length > 0) {
   console.error(`[check:secrets] ${problems.length} problema(s):`);
   for (const problem of problems) console.error(`  - ${problem}`);
@@ -224,5 +299,5 @@ if (problems.length > 0) {
 
 console.log(
   `[check:secrets] ok: ${srcFiles.length} arquivos em src/, ${clientFiles.length} arquivos "use client" ` +
-    `verificados, ${existsSync(staticDir) ? `${scannedStatic} arquivos em .next/static varridos` : "sem build para varrer"}.`,
+    `verificados, ${existsSync(buildDir) ? `${scannedBuild} arquivos do build (.next, sem cache) varridos` : "sem build para varrer"}.`,
 );

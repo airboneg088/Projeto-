@@ -7,16 +7,20 @@ import { Button } from "@/components/ui/button";
 import { Notice } from "@/components/ui/notice";
 import { TextField } from "@/components/ui/text-field";
 import { AUTH_MESSAGES } from "@/lib/auth/messages";
+import { recuperarSchema } from "@/lib/auth/schemas";
+import { useClientValidation } from "@/lib/auth/use-client-validation";
 
 import { type RecuperarState, requestPasswordReset } from "./actions";
 
 const initialState: RecuperarState = {};
+const FIELDS = ["email"] as const;
 
 export function RecuperarForm() {
   const [state, formAction, pending] = useActionState(requestPasswordReset, initialState);
+  const { clientErrors, onSubmit } = useClientValidation(recuperarSchema, FIELDS);
 
   return (
-    <form action={formAction} noValidate className="flex flex-col gap-5">
+    <form action={formAction} onSubmit={onSubmit} noValidate className="flex flex-col gap-5">
       {state.sent ? <Notice tone="success">{AUTH_MESSAGES.resetSent}</Notice> : null}
       <TextField
         id="email"
@@ -29,7 +33,7 @@ export function RecuperarForm() {
         spellCheck={false}
         required
         defaultValue={state.email}
-        error={state.fieldErrors?.email}
+        error={clientErrors.email ?? state.fieldErrors?.email}
       />
       <Button type="submit" block disabled={pending}>
         {pending ? "Enviando…" : "Enviar link"}

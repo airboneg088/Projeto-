@@ -109,9 +109,11 @@ begin
       using errcode = 'P0001', detail = 'Tentativa encerrada sem envio não pode ser alterada.';
   end if;
 
-  if (to_jsonb(new) - array['note', 'submitted_at', 'submit_client_mutation_id', 'abandoned_at', 'abandoned_reason'])
+  if (to_jsonb(new) - array['note', 'submitted_at', 'submitted_at_device', 'submit_client_mutation_id',
+                            'abandoned_at', 'abandoned_reason'])
      is distinct from
-     (to_jsonb(old) - array['note', 'submitted_at', 'submit_client_mutation_id', 'abandoned_at', 'abandoned_reason']) then
+     (to_jsonb(old) - array['note', 'submitted_at', 'submitted_at_device', 'submit_client_mutation_id',
+                            'abandoned_at', 'abandoned_reason']) then
     raise exception 'immutable'
       using errcode = 'P0001',
             detail = 'Na tentativa aberta só mudam observação, dados do envio e o encerramento sem envio.';
@@ -129,7 +131,7 @@ end;
 $$;
 
 comment on function private.guard_attempt_change() is
-  'Gatilho em task_attempts: bloqueia DELETE; depois do envio ou do encerramento sem envio bloqueia qualquer UPDATE; antes, só note/submitted_at/submit_client_mutation_id e abandoned_at/abandoned_reason (com o horário do servidor) mudam.';
+  'Gatilho em task_attempts: bloqueia DELETE; depois do envio ou do encerramento sem envio bloqueia qualquer UPDATE; antes, só note/submitted_at/submitted_at_device/submit_client_mutation_id e abandoned_at/abandoned_reason (com o horário do servidor) mudam.';
 
 revoke all on function private.guard_attempt_change() from public, anon;
 

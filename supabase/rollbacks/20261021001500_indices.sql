@@ -29,6 +29,7 @@ drop index public.evidences_task_item_id_idx;
 drop index public.evidences_task_id_idx;
 drop index public.evidences_attempt_id_idx;
 
+drop index public.attempt_item_answers_applied_mutation_ids_idx;
 drop index public.attempt_item_answers_task_id_idx;
 drop index public.attempt_item_answers_task_item_id_idx;
 

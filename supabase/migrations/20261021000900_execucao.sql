@@ -17,6 +17,7 @@ create table public.task_attempts (
   started_at timestamptz not null default now(),
   started_at_device timestamptz,
   submitted_at timestamptz,
+  submitted_at_device timestamptz,
   note text,
   client_mutation_id uuid,
   submit_client_mutation_id uuid,
@@ -27,6 +28,13 @@ create table public.task_attempts (
   -- Início pelo aparelho (fila offline): nunca depois da chegada ao servidor
   constraint task_attempts_device_start_not_after_server check (
     started_at_device is null or started_at_device <= started_at
+  ),
+  -- Envio pelo aparelho (fila offline): só com envio, entre o início e a chegada ao servidor
+  constraint task_attempts_device_submit_bounds check (
+    submitted_at_device is null
+    or (submitted_at is not null
+        and submitted_at_device <= submitted_at
+        and submitted_at_device >= coalesce(started_at_device, started_at))
   ),
   -- Encerrada sem envio (passagem da tarefa para outra pessoa): nunca enviada, com motivo
   constraint task_attempts_closed_once check (submitted_at is null or abandoned_at is null),
@@ -57,7 +65,9 @@ comment on column public.task_attempts.started_at is
 comment on column public.task_attempts.started_at_device is
   'Início pelo relógio do aparelho (fila offline, D72), limitado pelo servidor: nunca antes da janela (ou da criação da tarefa) nem do fim da tentativa anterior, e nunca depois de started_at. Usado só para conferir se a foto com EXIF é anterior ao início (photo_before_start). Nulo = iniciada online.';
 comment on column public.task_attempts.submitted_at is
-  'Envio, pelo horário do servidor. Nulo com abandoned_at nulo = tentativa aberta.';
+  'Envio, pelo horário do servidor (na fila offline, a hora da sincronização). Nulo com abandoned_at nulo = tentativa aberta.';
+comment on column public.task_attempts.submitted_at_device is
+  'Envio pelo relógio do aparelho (quando a pessoa tocou em "Enviar"; fila offline, D94), limitado pelo servidor: nunca antes do início da tentativa nem da última resposta, nunca depois de submitted_at. Vale para os prazos dos indicadores (atrasada, na janela, atribuição → envio); nulo = enviada online (vale submitted_at). O tempo envio → revisão usa submitted_at.';
 comment on column public.task_attempts.note is 'Observação do colaborador no envio.';
 comment on column public.task_attempts.client_mutation_id is
   'Id gerado no aparelho para iniciar a tentativa; reenvio offline com o mesmo id devolve a mesma tentativa.';
@@ -81,8 +91,12 @@ create table public.attempt_item_answers (
   answered_at timestamptz not null default now(),
   answered_at_device timestamptz,
   client_mutation_id uuid,
+  applied_mutation_ids uuid[] not null default '{}',
   constraint attempt_item_answers_attempt_item_key unique (attempt_id, task_item_id),
   constraint attempt_item_answers_client_mutation_id_key unique (client_mutation_id),
+  -- Histórico dos ids aplicados neste item (reenvio de um id já substituído); answer_item
+  -- guarda os 200 mais recentes
+  constraint attempt_item_answers_applied_mutation_ids_limit check (cardinality(applied_mutation_ids) <= 200),
   constraint attempt_item_answers_note_length check (note is null or char_length(note) <= 1000),
   -- Tentativa e item da MESMA tarefa (nunca item de outra tarefa ou organização)
   constraint attempt_item_answers_attempt_task_fkey foreign key (attempt_id, task_id)
@@ -106,6 +120,8 @@ comment on column public.attempt_item_answers.answered_at_device is
   'Quando a pessoa respondeu, pelo relógio do aparelho (nunca depois do horário do servidor). Um reenvio offline mais antigo que a resposta gravada é ignorado (não desfaz uma resposta mais nova).';
 comment on column public.attempt_item_answers.client_mutation_id is
   'Id gerado no aparelho para a última resposta gravada; reenvio com o mesmo id não muda nada.';
+comment on column public.attempt_item_answers.applied_mutation_ids is
+  'Ids (client_mutation_id) de todas as respostas já aplicadas a este item nesta tentativa, inclusive as substituídas depois (os 200 mais recentes). O reenvio de qualquer um deles não muda nada (D93): sem isso, o reenvio de uma resposta antiga cujo id foi sobrescrito voltava a valer.';
 
 -- -----------------------------------------------------------------------------
 -- evidences

@@ -31,7 +31,11 @@ on conflict (id) do update
       allowed_mime_types = excluded.allowed_mime_types;
 
 -- -----------------------------------------------------------------------------
--- Funções que validam o caminho (todos os segmentos, sem "..", sem sobras)
+-- Funções que validam o caminho (todos os segmentos, sem "..", sem sobras). Vale
+-- também para a LEITURA: o servidor assina com a chave secreta exatamente o texto
+-- conferido, e o storage-js/fetch normalizam "\" e ".." da URL antes de enviar; um
+-- segmento livre ("..\..\<outro caminho>") passaria na conferência e a URL assinada
+-- seria de outro objeto (outra loja, organização ou bucket) (D92).
 -- -----------------------------------------------------------------------------
 create function private.can_insert_evidence_object(p_name text)
 returns boolean
@@ -88,12 +92,14 @@ declare
   v_parts text[] := string_to_array(p_name, '/');
   v_uuid constant text := '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';
 begin
+  -- Caminho inteiro, como no upload: o nome do arquivo também ({uuid}.jpg)
   if p_name is null
      or cardinality(v_parts) <> 5
      or v_parts[1] !~ v_uuid
      or v_parts[2] !~ v_uuid
      or v_parts[3] !~ v_uuid
-     or v_parts[4] !~ v_uuid then
+     or v_parts[4] !~ v_uuid
+     or v_parts[5] !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.jpg$' then
     return false;
   end if;
 
@@ -117,7 +123,7 @@ end;
 $$;
 
 comment on function private.can_read_evidence_object(text) is
-  'Verdadeiro se o usuário logado pode ler a foto: executor da tentativa (com vínculo vigente), gerente da loja ou proprietária.';
+  'Verdadeiro se o caminho é exatamente {org}/{loja}/{tarefa}/{tentativa}/{uuid}.jpg (todos os segmentos, como no upload) e o usuário logado pode ler a foto: executor da tentativa (com vínculo vigente), gerente da loja ou proprietária.';
 
 create function private.can_insert_reference_object(p_name text)
 returns boolean
@@ -174,10 +180,13 @@ declare
   v_uuid constant text := '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';
   v_org uuid := private.current_org_id();
 begin
+  -- Caminho inteiro, como no upload: rotina (ou tarefa) e nome do arquivo também
   if p_name is null
      or v_org is null
      or cardinality(v_parts) <> 4
      or v_parts[1] !~ v_uuid
+     or v_parts[3] !~ v_uuid
+     or v_parts[4] !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(jpg|png|webp)$'
      or v_parts[1]::uuid <> v_org then
     return false;
   end if;
@@ -197,7 +206,7 @@ end;
 $$;
 
 comment on function private.can_read_reference_object(text) is
-  'Verdadeiro se o usuário logado é proprietária, gerente ou colaborador com vínculo vigente na organização (pasta "rede") ou na loja do caminho. Admin não lê (D15: conteúdo de rotina só por função auditada).';
+  'Verdadeiro se o caminho é exatamente {org}/{loja ou rede}/{uuid}/{uuid}.{jpg,png,webp} (todos os segmentos, como no upload) e o usuário logado é proprietária, gerente ou colaborador com vínculo vigente na organização (pasta "rede") ou na loja do caminho. Admin não lê (D15: conteúdo de rotina só por função auditada).';
 
 -- -----------------------------------------------------------------------------
 -- Conferência de leitura para o servidor (D77): o servidor chama com o cliente do

@@ -73,11 +73,12 @@ begin
       using errcode = '22023', detail = 'O agendamento não corresponde à loja e à rotina informadas.';
   end if;
 
-  -- Responsável fixo que não pode mais executar (saiu da loja, deixou de ser colaborador ou
-  -- foi desativado): a tarefa do dia vai para a equipe do setor (D42, D86)
+  -- Responsável fixo que não pode executar esta tarefa (saiu da loja, deixou de ser
+  -- colaborador, foi desativado ou só começa depois do prazo): a tarefa do dia vai para a
+  -- equipe do setor (D42, D86, D100)
   if v_assignee_id is not null
-     and not private.can_be_assignee(v_assignee_id, v_store.organization_id, p_store_id) then
-    raise warning 'instantiate_task: responsável % não é colaborador ativo da loja %; tarefa gerada para a equipe do setor',
+     and not private.can_be_assignee(v_assignee_id, v_store.organization_id, p_store_id, p_due_at) then
+    raise warning 'instantiate_task: responsável % não pode executar a tarefa na loja % (colaborador ativo com vínculo antes do prazo); tarefa gerada para a equipe do setor',
       v_assignee_id, p_store_id;
     v_assignee_id := null;
   end if;
@@ -122,6 +123,6 @@ end;
 $$;
 
 comment on function private.instantiate_task(uuid, uuid, uuid, uuid, timestamptz, timestamptz, uuid, date, uuid, public.task_priority) is
-  'Cria uma tarefa com snapshot da versão atual da rotina (título, instruções, imagem, exigências, peso, versão, prioridade padrão) e copia os itens ativos para task_items. Com agendamento, ON CONFLICT (schedule_id, scheduled_date) devolve a tarefa existente. Responsável que não é colaborador ativo da loja vira equipe do setor (aviso no log). p_created_by é ignorado (autor = usuário logado ou sistema).';
+  'Cria uma tarefa com snapshot da versão atual da rotina (título, instruções, imagem, exigências, peso, versão, prioridade padrão) e copia os itens ativos para task_items. Com agendamento, ON CONFLICT (schedule_id, scheduled_date) devolve a tarefa existente. Responsável que não é colaborador ativo da loja (ou cujo vínculo só começa depois do prazo) vira equipe do setor (aviso no log). p_created_by é ignorado (autor = usuário logado ou sistema).';
 
 revoke all on function private.instantiate_task(uuid, uuid, uuid, uuid, timestamptz, timestamptz, uuid, date, uuid, public.task_priority) from public, anon, authenticated;

@@ -37,6 +37,9 @@ create index task_attempts_performed_by_idx on public.task_attempts (performed_b
 
 create index attempt_item_answers_task_item_id_idx on public.attempt_item_answers (task_item_id);
 create index attempt_item_answers_task_id_idx on public.attempt_item_answers (task_id);
+-- Reenvio de resposta (answer_item): busca o id em todas as respostas já aplicadas
+create index attempt_item_answers_applied_mutation_ids_idx on public.attempt_item_answers
+  using gin (applied_mutation_ids);
 
 create index evidences_attempt_id_idx on public.evidences (attempt_id);
 create index evidences_task_id_idx on public.evidences (task_id);

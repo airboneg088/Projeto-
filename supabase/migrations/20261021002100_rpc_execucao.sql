@@ -181,6 +181,7 @@ declare
   v_number smallint;
   v_attempt_id uuid;
   v_device_start timestamptz;
+  v_released uuid;
 begin
   if v_uid is null then
     raise exception 'forbidden' using errcode = 'P0001';
@@ -212,11 +213,26 @@ begin
     raise exception 'forbidden' using errcode = 'P0001';
   end if;
 
-  -- 3. Trava
+  -- 3. Travas: os vínculos de colaborador da pessoa na loja e o perfil (FOR SHARE), depois a
+  --    tarefa. O gatilho de passagem (D82) só encerra as tentativas que já existem quando o
+  --    vínculo/perfil muda; sem estas travas, um início no meio de uma mudança ainda não
+  --    commitada (fim do vínculo, troca de setor, desativação) criava a tentativa depois de o
+  --    gatilho procurar, e ela ficava aberta. Agora o início espera o commit da mudança e cai
+  --    na conferência abaixo (forbidden); se vier antes, a mudança espera e o gatilho encerra a
+  --    tentativa (D97). Ordem vínculo -> perfil -> tarefa: a mesma de uma transferência (encerra
+  --    o vínculo e abre outro, que trava o perfil) e do gatilho (linha da pessoa -> tarefa).
+  perform 1
+  from public.memberships m
+  where m.profile_id = v_uid
+    and m.role = 'staff'
+    and m.store_id = (select t.store_id from public.tasks t where t.id = p_task_id)
+  order by m.id
+  for share;
+  perform 1 from public.profiles p where p.id = v_uid for share;
   select * into v_task from public.tasks where id = p_task_id for update;
 
-  -- 4. Acesso de novo: a tarefa pode ter sido reatribuída enquanto este pedido esperava
-  --    a trava (quem deixou de ser o responsável não inicia)
+  -- 4. Acesso de novo: a tarefa pode ter sido reatribuída (ou o vínculo/perfil mudado)
+  --    enquanto este pedido esperava as travas (quem deixou de poder executar não inicia)
   if not private.can_execute_task(p_task_id) then
     raise exception 'forbidden' using errcode = 'P0001';
   end if;
@@ -244,7 +260,7 @@ begin
 
   -- Tentativa aberta de quem perdeu a tarefa (reatribuída, saiu da equipe ou da loja):
   -- encerrada sem envio (fica no histórico), e a tarefa fica livre para quem chama
-  perform private.release_stale_attempt(p_task_id);
+  v_released := private.release_stale_attempt(p_task_id);
 
   -- Tentativa aberta (em andamento, ou atrasada com tentativa já iniciada)
   select * into v_open
@@ -277,15 +293,17 @@ begin
   -- Início pelo aparelho (fila offline, D72): a pessoa abriu a tarefa sem internet e a fila
   -- chegou depois. Limitado pelo servidor: nunca antes da janela (ou da criação da tarefa),
   -- nem antes do fim da tentativa anterior (envio, revisão ou encerramento), nem depois de
-  -- agora. Só serve para conferir a foto anterior ao início; started_at continua sendo a
-  -- hora do servidor.
+  -- agora. A tentativa velha encerrada AGORA, nesta chamada, não é o "fim da tentativa
+  -- anterior" (o encerramento é a hora da sincronização): para ela vale o início dela (D98).
+  -- started_at continua sendo a hora do servidor.
   if p_started_at_device is not null then
     v_device_start := least(
       now(),
       greatest(
         p_started_at_device,
         coalesce(v_task.window_start_at, v_task.created_at),
-        (select max(greatest(a.submitted_at, a.abandoned_at, r.reviewed_at))
+        (select max(case when a.id = v_released then a.started_at
+                         else greatest(a.submitted_at, a.abandoned_at, r.reviewed_at) end)
          from public.task_attempts a
          left join public.reviews r on r.attempt_id = a.id
          where a.task_id = p_task_id)
@@ -313,11 +331,14 @@ comment on function public.start_attempt(uuid, uuid, timestamptz) is
 
 -- -----------------------------------------------------------------------------
 -- answer_item: marca/desmarca um item do checklist (upsert)
---   Offline: o aparelho envia client_mutation_id e o horário da resposta
---   (p_answered_at_device). Reenvio do mesmo id não muda nada; resposta mais
---   antiga que a gravada (fila reordenada, reenvio atrasado) é ignorada e não
---   desfaz uma resposta mais nova. Devolve true se a resposta vale (gravada ou
---   já gravada) e false se foi ignorada por ser mais antiga.
+--   O aparelho envia client_mutation_id e o horário da resposta
+--   (p_answered_at_device) em toda resposta, online ou da fila offline. Reenvio
+--   de um id já aplicado neste item não muda nada, mesmo que outra resposta o
+--   tenha substituído depois (applied_mutation_ids, D93); resposta mais antiga
+--   que a gravada (fila reordenada, reenvio atrasado) é ignorada e não desfaz
+--   uma resposta mais nova. Devolve true se a resposta vale (gravada agora, ou
+--   já gravada e ainda a atual) e false se foi ignorada (mais antiga que a
+--   gravada, ou reenvio de uma resposta já substituída).
 -- -----------------------------------------------------------------------------
 create function public.answer_item(
   p_attempt_id uuid,
@@ -358,15 +379,22 @@ begin
     raise exception 'forbidden' using errcode = 'P0001';
   end if;
 
-  -- 2. Reenvio (offline): o mesmo client_mutation_id não muda nada
+  -- 2. Reenvio: um client_mutation_id já aplicado neste item não muda nada, mesmo que uma
+  --    resposta mais nova o tenha substituído depois (o pedido cuja resposta HTTP se perdeu e
+  --    é repetido pela fila ou pelo fetch). Antes, só o id da resposta ATUAL era reconhecido:
+  --    o reenvio de um id substituído caía na comparação de horários e, sem horário do
+  --    aparelho (ou com relógio adiantado, limitado a agora), voltava a valer (D93).
+  --    Devolve true se ele ainda é a resposta gravada; false se outra mais nova a substituiu.
   if p_client_mutation_id is not null then
-    select * into v_existing from public.attempt_item_answers where client_mutation_id = p_client_mutation_id;
+    select * into v_existing
+    from public.attempt_item_answers
+    where applied_mutation_ids @> array[p_client_mutation_id];
     if found then
       if v_existing.attempt_id <> p_attempt_id or v_existing.task_item_id is distinct from p_task_item_id then
         raise exception 'forbidden' using errcode = 'P0001',
           detail = 'Este identificador de envio pertence a outra tentativa ou item.';
       end if;
-      return true;
+      return v_existing.client_mutation_id is not distinct from p_client_mutation_id;
     end if;
   end if;
 
@@ -376,13 +404,15 @@ begin
 
   -- Reenvio de novo, depois das travas (o mesmo pedido chegando duas vezes ao mesmo tempo)
   if p_client_mutation_id is not null then
-    select * into v_existing from public.attempt_item_answers where client_mutation_id = p_client_mutation_id;
+    select * into v_existing
+    from public.attempt_item_answers
+    where applied_mutation_ids @> array[p_client_mutation_id];
     if found then
       if v_existing.attempt_id <> p_attempt_id or v_existing.task_item_id is distinct from p_task_item_id then
         raise exception 'forbidden' using errcode = 'P0001',
           detail = 'Este identificador de envio pertence a outra tentativa ou item.';
       end if;
-      return true;
+      return v_existing.client_mutation_id is not distinct from p_client_mutation_id;
     end if;
   end if;
 
@@ -392,10 +422,11 @@ begin
     raise exception 'forbidden' using errcode = 'P0001';
   end if;
 
-  -- Resposta mais nova já gravada: um reenvio mais antigo não a desfaz (sem horário do
-  -- aparelho, vale a ordem de chegada). Vem antes da conferência de estado: o reenvio
-  -- atrasado de uma resposta que já valeu e foi corrigida não muda nada, então devolve
-  -- false também com a tentativa já enviada, em vez de virar erro (D88)
+  -- Resposta mais nova já gravada: uma resposta mais antiga (fila reordenada) não a desfaz
+  -- (sem horário do aparelho, vale a ordem de chegada; o aparelho manda o horário em toda
+  -- resposta, D93). Vem antes da conferência de estado: o reenvio atrasado de uma resposta que
+  -- já valeu e foi corrigida não muda nada, então devolve false também com a tentativa já
+  -- enviada, em vez de virar erro (D88)
   select * into v_existing
   from public.attempt_item_answers
   where attempt_id = p_attempt_id and task_item_id = p_task_item_id;
@@ -420,18 +451,24 @@ begin
 
   begin
     insert into public.attempt_item_answers (
-      attempt_id, task_id, task_item_id, checked, note, answered_at, answered_at_device, client_mutation_id
+      attempt_id, task_id, task_item_id, checked, note, answered_at, answered_at_device, client_mutation_id,
+      applied_mutation_ids
     )
     values (
       p_attempt_id, v_task.id, p_task_item_id, coalesce(p_checked, false), private.clean_text(p_note), now(),
-      v_device_at, p_client_mutation_id
+      v_device_at, p_client_mutation_id,
+      case when p_client_mutation_id is null then '{}'::uuid[] else array[p_client_mutation_id] end
     )
     on conflict (attempt_id, task_item_id) do update
       set checked = excluded.checked,
           note = excluded.note,
           answered_at = excluded.answered_at,
           answered_at_device = excluded.answered_at_device,
-          client_mutation_id = excluded.client_mutation_id;
+          client_mutation_id = excluded.client_mutation_id,
+          -- Os 200 ids mais recentes (CHECK attempt_item_answers_applied_mutation_ids_limit)
+          applied_mutation_ids = (attempt_item_answers.applied_mutation_ids || excluded.applied_mutation_ids)[
+            greatest(1, cardinality(attempt_item_answers.applied_mutation_ids)
+                        + cardinality(excluded.applied_mutation_ids) - 199):];
   exception
     when unique_violation then
       get stacked diagnostics v_constraint = constraint_name;
@@ -447,7 +484,7 @@ end;
 $$;
 
 comment on function public.answer_item(uuid, uuid, boolean, text, uuid, timestamptz) is
-  'Executor responde um item do checklist na tentativa aberta (grava ou substitui a resposta): marcado = feito; desmarcado com observação = não conforme; desmarcado sem observação = ainda não respondido. Idempotente por client_mutation_id; resposta com horário do aparelho anterior ao da resposta gravada é ignorada (reenvio offline atrasado não desfaz a mais nova). Devolve true se a resposta vale e false se foi ignorada (também depois do envio: o reenvio mais antigo não vira erro). Quem deixou de ser o responsável recebe forbidden.';
+  'Executor responde um item do checklist na tentativa aberta (grava ou substitui a resposta): marcado = feito; desmarcado com observação = não conforme; desmarcado sem observação = ainda não respondido. Idempotente por client_mutation_id, inclusive para um id já substituído por resposta mais nova (applied_mutation_ids); resposta com horário do aparelho anterior ao da resposta gravada é ignorada (reenvio offline atrasado não desfaz a mais nova). Devolve true se a resposta vale (gravada, ou reenvio da resposta atual) e false se foi ignorada (mais antiga, ou reenvio de resposta já substituída; também depois do envio: não vira erro). Quem deixou de ser o responsável recebe forbidden.';
 
 -- -----------------------------------------------------------------------------
 -- register_evidence: registra a foto já enviada ao bucket evidences
@@ -671,7 +708,8 @@ comment on function public.register_evidence(uuid, uuid, text, timestamptz, nume
 create function public.submit_attempt(
   p_attempt_id uuid,
   p_note text default null,
-  p_client_mutation_id uuid default null
+  p_client_mutation_id uuid default null,
+  p_submitted_at_device timestamptz default null
 )
 returns public.task_status
 language plpgsql
@@ -688,6 +726,7 @@ declare
   v_note text;
   v_status public.task_status;
   v_nonconforming boolean;
+  v_device_submit timestamptz;
 begin
   if v_uid is null then
     raise exception 'forbidden' using errcode = 'P0001';
@@ -796,8 +835,26 @@ begin
     raise exception 'note_required' using errcode = 'P0001';
   end if;
 
+  -- Envio pelo aparelho (fila offline, D94): quando a pessoa tocou em "Enviar" sem internet.
+  -- Limitado pelo servidor: nunca antes do início da tentativa (o do aparelho, D72) nem da
+  -- última resposta, e nunca depois de agora. Vale para os prazos dos indicadores;
+  -- submitted_at continua sendo a chegada ao servidor.
+  if p_submitted_at_device is not null then
+    v_device_submit := least(
+      now(),
+      greatest(
+        p_submitted_at_device,
+        coalesce(v_attempt.started_at_device, v_attempt.started_at),
+        (select max(coalesce(ans.answered_at_device, ans.answered_at))
+         from public.attempt_item_answers ans
+         where ans.attempt_id = v_attempt.id)
+      )
+    );
+  end if;
+
   update public.task_attempts
      set submitted_at = now(),
+         submitted_at_device = v_device_submit,
          note = v_note,
          submit_client_mutation_id = coalesce(p_client_mutation_id, submit_client_mutation_id)
    where id = v_attempt.id;
@@ -818,8 +875,8 @@ begin
 end;
 $$;
 
-comment on function public.submit_attempt(uuid, text, uuid) is
-  'Executor envia a tentativa: exige todos os itens respondidos (feito, ou não conforme com observação), fotos exigidas (de cada item que exige e, se a tarefa exige, ao menos uma foto geral da tarefa, sem item) e observação quando requerida. Vai para submitted; sem exigência de aprovação e sem item não conforme, é auto-aprovada (revisão is_auto). Reenvio devolve o status atual para quem ainda executa a tarefa; para quem não executa mais (reatribuída, mudou de setor), só o resultado da própria tentativa (approved, rejected ou submitted). Quem deixou de ser o responsável recebe forbidden num envio novo; tentativa encerrada sem envio, attempt_closed.';
+comment on function public.submit_attempt(uuid, text, uuid, timestamptz) is
+  'Executor envia a tentativa: exige todos os itens respondidos (feito, ou não conforme com observação), fotos exigidas (de cada item que exige e, se a tarefa exige, ao menos uma foto geral da tarefa, sem item) e observação quando requerida. Vai para submitted; sem exigência de aprovação e sem item não conforme, é auto-aprovada (revisão is_auto). Reenvio devolve o status atual para quem ainda executa a tarefa; para quem não executa mais (reatribuída, mudou de setor), só o resultado da própria tentativa (approved, rejected ou submitted). Quem deixou de ser o responsável recebe forbidden num envio novo; tentativa encerrada sem envio, attempt_closed. p_submitted_at_device: horário do aparelho em que a pessoa tocou em "Enviar" (fila offline); gravado em submitted_at_device, limitado entre o início da tentativa (ou a última resposta) e agora, e usado nos prazos dos indicadores.';
 
 -- -----------------------------------------------------------------------------
 -- Privilégios: só usuários logados
@@ -827,9 +884,9 @@ comment on function public.submit_attempt(uuid, text, uuid) is
 revoke execute on function public.start_attempt(uuid, uuid, timestamptz) from public, anon;
 revoke execute on function public.answer_item(uuid, uuid, boolean, text, uuid, timestamptz) from public, anon;
 revoke execute on function public.register_evidence(uuid, uuid, text, timestamptz, numeric, numeric, numeric, text, bigint, integer, boolean, uuid) from public, anon;
-revoke execute on function public.submit_attempt(uuid, text, uuid) from public, anon;
+revoke execute on function public.submit_attempt(uuid, text, uuid, timestamptz) from public, anon;
 
 grant execute on function public.start_attempt(uuid, uuid, timestamptz) to authenticated;
 grant execute on function public.answer_item(uuid, uuid, boolean, text, uuid, timestamptz) to authenticated;
 grant execute on function public.register_evidence(uuid, uuid, text, timestamptz, numeric, numeric, numeric, text, bigint, integer, boolean, uuid) to authenticated;
-grant execute on function public.submit_attempt(uuid, text, uuid) to authenticated;
+grant execute on function public.submit_attempt(uuid, text, uuid, timestamptz) to authenticated;

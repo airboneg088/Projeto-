@@ -139,8 +139,24 @@ security definer
 set search_path = ''
 as $$
 begin
-  -- Montar o checklist de uma rotina que nenhuma tarefa usou ainda não é edição (a
-  -- criação pela API leva vários pedidos); depois do primeiro uso, cada mudança é
+  -- Trava a rotina antes de decidir (D99). A geração da tarefa (private.instantiate_task) e a
+  -- validação do snapshot travam a rotina FOR SHARE e copiam os itens com o próprio snapshot;
+  -- sem esta trava, um item incluído enquanto a 1ª tarefa era gerada não entrava na tarefa e
+  -- também não subia a versão (cada um decidia sem ver o outro): dois checklists diferentes na
+  -- mesma versão. Com ela, ou a geração espera e copia o item, ou este gatilho vê a tarefa.
+  perform 1
+  from public.task_templates t
+  where t.id in (
+          select (case when tg_op = 'DELETE' then null else new.template_id end)
+          union
+          select (case when tg_op = 'INSERT' then null else old.template_id end)
+        )
+  order by t.id
+  for no key update;
+
+  -- Montar o checklist de uma rotina que nenhuma tarefa usou ainda não é edição (a criação
+  -- pela API leva vários pedidos: rotina, itens, imagem); depois do primeiro uso, cada
+  -- mudança nos itens sobe a versão em 1
   update public.task_templates t
      set version = t.version + 1
    where t.id in (
@@ -154,7 +170,7 @@ end;
 $$;
 
 comment on function private.bump_template_version_from_items() is
-  'Gatilho AFTER em template_items: incluir, alterar ou remover item incrementa a versão da rotina, se alguma tarefa já usou a rotina (antes disso ela está em montagem e fica na versão 1).';
+  'Gatilho AFTER em template_items: incluir, alterar ou remover item incrementa a versão da rotina, se alguma tarefa já usou a rotina (antes disso ela está em montagem e fica na versão 1). Trava a rotina antes de decidir, para não correr com a geração da 1ª tarefa (D99).';
 
 revoke all on function private.bump_template_version_from_items() from public, anon;
 

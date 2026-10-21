@@ -92,9 +92,14 @@ comment on function public.log_event(text, jsonb) is
 --   O Auth (GoTrue) chama a função a cada token emitido, como supabase_auth_admin
 --   ([auth.hook.custom_access_token] no config.toml). Login (qualquer método que não
 --   seja a renovação do token) de quem tem vínculo vigente de admin, com perfil
---   ativo, grava 'admin_login' com o método; no máximo um registro por admin por
+--   ativo, grava 'admin_login' com o método, a sessão e o nível de autenticação;
+--   um registro por sessão (dois logins no mesmo minuto, em aparelhos diferentes,
+--   são dois registros; D102) e, contra inundação, no máximo 20 por admin por
 --   minuto. Devolve as claims sem mudança e NUNCA levanta erro (erro no hook
 --   bloquearia o login de todo mundo): falha vira aviso no log do Postgres.
+--   Função ausente ou sem permissão derruba o login de todos: desligue o hook no
+--   Auth antes do rollback desta migration e, no deploy, ligue-o só depois dela
+--   (docs/dev-local.md §6).
 -- -----------------------------------------------------------------------------
 create function private.custom_access_token_hook(event jsonb)
 returns jsonb
@@ -107,10 +112,19 @@ declare
   v_method text := left(coalesce(event ->> 'authentication_method', 'desconhecido'), 40);
   v_user_id uuid;
   v_org uuid;
+  v_session text;
+  v_aal text;
 begin
   if v_method <> 'token_refresh' then
     begin
       v_user_id := (event ->> 'user_id')::uuid;
+      -- Sessão e nível de autenticação vêm das claims que o próprio Auth montou
+      v_session := lower(event -> 'claims' ->> 'session_id');
+      if v_session !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
+        v_session := null;
+      end if;
+      v_aal := case when event -> 'claims' ->> 'aal' in ('aal1', 'aal2', 'aal3')
+                    then event -> 'claims' ->> 'aal' end;
 
       select m.organization_id into v_org
       from public.memberships m
@@ -127,13 +141,22 @@ begin
       if v_org is not null then
         perform pg_advisory_xact_lock(hashtextextended('admin_login:' || v_user_id::text, 0));
         if not exists (
-          select 1 from public.audit_log l
-          where l.actor_id = v_user_id
-            and l.action = 'admin_login'
-            and l.occurred_at > now() - interval '1 minute'
-        ) then
+             -- Um registro por sessão (o mesmo login não se repete); sem sessão nas claims,
+             -- um por minuto
+             select 1 from public.audit_log l
+             where l.actor_id = v_user_id
+               and l.action = 'admin_login'
+               and (case when v_session is null then l.occurred_at > now() - interval '1 minute'
+                         else l.occurred_at > now() - interval '1 day' and l.diff ->> 'sessao' = v_session end)
+           )
+           -- Contra inundação: no máximo 20 por admin por minuto
+           and (select count(*) from public.audit_log l
+                where l.actor_id = v_user_id
+                  and l.action = 'admin_login'
+                  and l.occurred_at > now() - interval '1 minute') < 20 then
           insert into public.audit_log (occurred_at, organization_id, actor_id, action, table_name, record_id, diff)
-          values (now(), v_org, v_user_id, 'admin_login', null, null, jsonb_build_object('metodo', v_method));
+          values (now(), v_org, v_user_id, 'admin_login', null, null,
+                  jsonb_strip_nulls(jsonb_build_object('metodo', v_method, 'sessao', v_session, 'aal', v_aal)));
         end if;
       end if;
     exception
@@ -147,7 +170,7 @@ end;
 $$;
 
 comment on function private.custom_access_token_hook(jsonb) is
-  'Hook Custom Access Token do Auth: todo login de admin (vínculo de rede vigente, perfil ativo) que não seja renovação de token grava admin_login no audit_log com o método (password, recovery...), no máximo um por admin por minuto, inclusive quando o login é feito direto na API do Auth. Devolve as claims sem mudança e nunca levanta erro. Só o papel do Auth (supabase_auth_admin) executa.';
+  'Hook Custom Access Token do Auth: todo login de admin (vínculo de rede vigente, perfil ativo) que não seja renovação de token grava admin_login no audit_log com o método (password, recovery...), a sessão e o nível de autenticação (aal), um por sessão (sem sessão nas claims, um por minuto) e no máximo 20 por admin por minuto, inclusive quando o login é feito direto na API do Auth. Devolve as claims sem mudança e nunca levanta erro. Só o papel do Auth (supabase_auth_admin) executa. Desligue o hook no Auth antes de remover esta função.';
 
 revoke all on function private.custom_access_token_hook(jsonb) from public, anon, authenticated, service_role;
 grant usage on schema private to supabase_auth_admin;

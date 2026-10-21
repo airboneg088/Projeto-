@@ -6,8 +6,12 @@
 --   - tarefas cancelled ficam fora de todas as contagens
 --   - submitted (aguardando aprovação) nunca conta como aprovada/concluída
 --   - atrasada = venceu sem envio (PRODUCT.md §7): não aprovada, prazo vencido e
---     não está aguardando aprovação de um envio feito até o prazo (a demora da
---     revisão do gerente não vira atraso de quem executou)
+--     sem envio feito até o prazo que ainda espera revisão ou que só foi revisado
+--     depois do prazo (a demora da revisão do gerente não vira atraso de quem
+--     executou, nem quando ela reprova depois do prazo; D53, D95)
+--   - horário do envio nos prazos = o do aparelho quando veio da fila offline
+--     (submitted_at_device, limitado pelo servidor; D94); o tempo envio → revisão
+--     usa a chegada ao servidor (o gerente só vê o envio quando ele chega)
 --   - percentuais de 0 a 100 com 1 casa decimal; nulos quando o denominador é 0
 --   - pessoa da tarefa (nota por pessoa e filtro de pessoa do kpi_summary, a
 --     mesma regra nos dois): aprovada = quem executou a tentativa aprovada;
@@ -18,8 +22,11 @@
 --     de quem passou a tarefa adiante, não conta) ou o responsável atual; nulo =
 --     "Sem responsável". Cada tarefa conta para uma pessoa só (D46, D74).
 --   - "1ª tentativa" = primeiro ENVIO (tentativa encerrada sem envio, numa
---     passagem da tarefa, não conta; D73)
---   - itens críticos reprovados contam para quem executou a tentativa reprovada
+--     passagem da tarefa, não conta; D73); com filtro de pessoa, o primeiro
+--     envio DELA na tarefa (quem socorreu uma tarefa reprovada não herda a
+--     reprovação de outra pessoa; D96)
+--   - itens críticos reprovados, devolvidas e tempo envio → revisão por pessoa
+--     contam para quem executou a tentativa revisada (D46, D96)
 -- =============================================================================
 
 -- -----------------------------------------------------------------------------
@@ -47,7 +54,9 @@ as $$
         select a.performed_by
         from public.task_attempts a
         where a.task_id = p_task_id
-          and a.started_at <= t.due_at
+          -- Início pelo aparelho quando veio da fila offline (D72, limitado pelo servidor):
+          -- quem abriu a tarefa sem internet antes do prazo estava com ela no prazo (D94)
+          and coalesce(a.started_at_device, a.started_at) <= t.due_at
           and (a.abandoned_at is null or a.abandoned_at > t.due_at)
         order by a.attempt_number desc
         limit 1
@@ -73,7 +82,7 @@ as $$
 $$;
 
 comment on function private.task_person(uuid, uuid, uuid, boolean) is
-  'Pessoa da tarefa nos indicadores: aprovada = executor da tentativa aprovada; vencida e não aprovada = quem estava com ela no prazo (tentativa iniciada até o prazo e não encerrada antes dele; sem ela, o responsável no prazo, se reatribuída depois de vencer, ou o atual); antes do prazo = executor da última tentativa não encerrada, senão o responsável atual; nulo = equipe sem execução ("Sem responsável").';
+  'Pessoa da tarefa nos indicadores: aprovada = executor da tentativa aprovada; vencida e não aprovada = quem estava com ela no prazo (tentativa iniciada até o prazo, pelo aparelho quando veio da fila offline, e não encerrada antes dele; sem ela, o responsável no prazo, se reatribuída depois de vencer, ou o atual); antes do prazo = executor da última tentativa não encerrada, senão o responsável atual; nulo = equipe sem execução ("Sem responsável").';
 
 revoke all on function private.task_person(uuid, uuid, uuid, boolean) from public, anon;
 grant execute on function private.task_person(uuid, uuid, uuid, boolean) to authenticated, service_role;
@@ -107,25 +116,32 @@ stable
 security invoker
 set search_path = ''
 as $$
-  with base as (
+  -- Tarefas do período e dos filtros de loja e setor (sem o de pessoa)
+  with scope as (
     select
       t.id,
       t.status,
       t.requires_approval,
       t.window_start_at,
       t.due_at,
-      t.created_at
+      t.created_at,
+      t.assignee_id,
+      t.assignee_at_due,
+      t.assignee_at_due_recorded
     from public.tasks t
     join public.stores s on s.id = t.store_id
     where t.status <> 'cancelled'
       and (t.due_at at time zone s.timezone)::date between p_from and p_to
       and (p_store_ids is null or t.store_id = any (p_store_ids))
       and (p_sector_ids is null or t.sector_id = any (p_sector_ids))
-      and (
-        p_profile_ids is null
-        or private.task_person(t.id, t.assignee_id, t.assignee_at_due, t.assignee_at_due_recorded)
-           = any (p_profile_ids)
-      )
+  ),
+  -- Tarefas contadas: com filtro de pessoa, as da pessoa da tarefa (private.task_person)
+  base as (
+    select sc.id, sc.status, sc.requires_approval, sc.window_start_at, sc.due_at, sc.created_at
+    from scope sc
+    where p_profile_ids is null
+       or private.task_person(sc.id, sc.assignee_id, sc.assignee_at_due, sc.assignee_at_due_recorded)
+          = any (p_profile_ids)
   ),
   enriched as (
     select
@@ -133,28 +149,42 @@ as $$
       fs.first_submitted_at,
       ap.approved_submitted_at,
       ap.approved_first_submission,
-      -- Atrasada = venceu sem envio: não aprovada, prazo vencido e não aguardando a
-      -- revisão de um envio feito até o prazo (enviada a tempo continua "Aguardando
-      -- aprovação" mesmo depois do prazo; enviada depois do prazo ou reprovada conta)
+      -- Atrasada = venceu sem envio: não aprovada, prazo vencido e sem um envio feito até o
+      -- prazo que ainda espera revisão ou que só foi revisado depois do prazo. Enviada a tempo
+      -- continua "Aguardando aprovação" mesmo depois do prazo; reprovada depois do prazo fica
+      -- em "Pendentes" (Correção solicitada): quem executou não teve como corrigir a tempo
+      -- (D95). Enviada depois do prazo, nunca enviada ou reprovada antes do prazo sem novo
+      -- envio até ele contam como atrasadas.
       (b.status <> 'approved'
        and b.due_at < now()
-       and not (b.status = 'submitted' and coalesce(fs.last_submitted_at <= b.due_at, false))) as is_late
+       and not exists (
+         select 1
+         from public.task_attempts a
+         left join public.reviews r on r.attempt_id = a.id
+         where a.task_id = b.id
+           and coalesce(a.submitted_at_device, a.submitted_at) <= b.due_at
+           and (r.id is null or r.reviewed_at > b.due_at)
+       )) as is_late
     from base b
     left join lateral (
-      select min(a.submitted_at) as first_submitted_at, max(a.submitted_at) as last_submitted_at
+      -- Horário do envio: o do aparelho quando veio da fila offline (D94)
+      select min(coalesce(a.submitted_at_device, a.submitted_at)) as first_submitted_at
       from public.task_attempts a
       where a.task_id = b.id
     ) fs on true
     left join lateral (
       select
-        a.submitted_at as approved_submitted_at,
+        coalesce(a.submitted_at_device, a.submitted_at) as approved_submitted_at,
         -- 1ª tentativa = 1º ENVIO: tentativa encerrada sem envio (passagem da tarefa, D52)
-        -- continua numerada, mas não é execução de ninguém (D73)
+        -- continua numerada, mas não é execução de ninguém (D73). Com filtro de pessoa, o 1º
+        -- envio DELA na tarefa: quem socorreu uma tarefa reprovada não herda a reprovação de
+        -- quem a executou antes (essa conta nas devolvidas de quem executou; D96)
         not exists (
           select 1 from public.task_attempts a2
           where a2.task_id = b.id
             and a2.submitted_at is not null
             and a2.attempt_number < a.attempt_number
+            and (p_profile_ids is null or a2.performed_by = a.performed_by)
         ) as approved_first_submission
       from public.reviews r
       join public.task_attempts a on a.id = r.attempt_id
@@ -186,13 +216,18 @@ as $$
         filter (where e.first_submitted_at is not null) as avg_assign_to_submit
     from enriched e
   ),
+  -- Revisões: da loja/setor, das tarefas do período; por pessoa, das tentativas que ELA
+  -- executou (a devolvida e a espera pela revisão são de quem enviou, mesmo que outra
+  -- pessoa tenha terminado a tarefa; D96). Envio → revisão pela chegada ao servidor: o
+  -- gerente só vê o envio quando ele chega.
   review_counts as (
     select
       avg(extract(epoch from (r.reviewed_at - a.submitted_at)) / 60) filter (where not r.is_auto) as avg_submit_to_review,
       count(*) filter (where r.decision = 'rejected') as n_returned
     from public.reviews r
     join public.task_attempts a on a.id = r.attempt_id
-    where r.task_id in (select b.id from base b)
+    where r.task_id in (select sc.id from scope sc)
+      and (p_profile_ids is null or a.performed_by = any (p_profile_ids))
   )
   select
     tc.n_planned::integer,
@@ -212,7 +247,7 @@ as $$
 $$;
 
 comment on function public.kpi_summary(date, date, uuid[], uuid[], uuid[]) is
-  'Indicadores do período (datas locais da loja), sem canceladas. previstas: due_at no período; executadas: com ao menos uma tentativa enviada; aprovadas: status approved; atrasadas: venceram sem envio = não aprovadas, com due_at < now() e que não estão aguardando aprovação de um envio feito até o prazo; pendentes: não aprovadas e não atrasadas; aguardando_aprovacao: submitted e não atrasadas (enviadas até o prazo ou antes de vencer; parte de pendentes); pct_aprovadas_na_janela: aprovadas com a tentativa aprovada enviada entre window_start_at e due_at ÷ previstas; pct_aprovadas_primeira_tentativa: aprovadas com exigência de aprovação no 1º envio (tentativa encerrada sem envio não conta) ÷ aprovadas com exigência de aprovação; media_min_atribuicao_envio: média de max(0, 1º envio − greatest(created_at, window_start_at)) em minutos; media_min_envio_revisao: média de (revisão − envio) nas revisões manuais; devolvidas: revisões rejected; adocao: executadas ÷ previstas. Filtro de pessoa: a pessoa da tarefa (private.task_person, a mesma da nota por pessoa).';
+  'Indicadores do período (datas locais da loja), sem canceladas. Horário do envio nos prazos = o do aparelho quando veio da fila offline (submitted_at_device, limitado pelo servidor). previstas: due_at no período; executadas: com ao menos uma tentativa enviada; aprovadas: status approved; atrasadas: venceram sem envio = não aprovadas, com due_at < now() e sem envio feito até o prazo que espera revisão ou só foi revisado depois do prazo; pendentes: não aprovadas e não atrasadas (inclui a reprovada depois do prazo); aguardando_aprovacao: submitted e não atrasadas (parte de pendentes); pct_aprovadas_na_janela: aprovadas com a tentativa aprovada enviada entre window_start_at e due_at ÷ previstas; pct_aprovadas_primeira_tentativa: aprovadas com exigência de aprovação no 1º envio (tentativa encerrada sem envio não conta; com filtro de pessoa, o 1º envio dela na tarefa) ÷ aprovadas com exigência de aprovação; media_min_atribuicao_envio: média de max(0, 1º envio − greatest(created_at, window_start_at)) em minutos; media_min_envio_revisao: média de (revisão − chegada do envio ao servidor) nas revisões manuais; devolvidas: revisões rejected; adocao: executadas ÷ previstas. Filtro de pessoa: as tarefas da pessoa da tarefa (private.task_person, a mesma da nota por pessoa); devolvidas e envio → revisão contam as tentativas que a pessoa executou.';
 
 -- -----------------------------------------------------------------------------
 -- weighted_scores

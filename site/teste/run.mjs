@@ -8,9 +8,10 @@ import http from 'node:http';
 import zlib from 'node:zlib';
 import crypto from 'node:crypto';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 
-const SITE = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
+const SITE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SEED = path.join(SITE, 'seed');
 const MONTAR = path.join(SITE, 'local', 'montar.mjs');
 const OUT = process.argv[2] || fs.mkdtempSync(path.join(os.tmpdir(), 'ede-site-capturas-'));
@@ -50,7 +51,8 @@ function historico(loja) {
       const tipo = r.tipo || 'diaria'; if (tipo === 'mensal') continue;
       if (tipo === 'periodica' && !((rid === 'limpeza_alto' && k === 12) || (rid === 'organizar_estoque' && k === 3))) continue;
       const feito = tipo === 'periodica' || (!(rid === 'fechamento' && k <= 4) && !(rid === 'limpeza' && w === 6) && !(rid === 'precificacao' && k % 5 === 0));
-      const resp = [].concat(padrao[rid] || []).filter(Boolean);
+      const reveza = ['salao', 'precificacao', 'reposicao', 'estoque'].includes(rid);
+      const resp = reveza ? [ids[k % 2]] : [].concat(padrao[rid] || []).filter(Boolean);
       const inicio = iso(data, r.inicio || '08:00'), prazo = iso(data, r.fim || '18:00');
       const t = { rotina: rid, titulo: r.titulo, instrucoes: r.instrucoes, setor: r.setor, responsaveis: resp, responsavel: resp[0] || null, inicio, prazo, exigeMidia: true, exigeAprovacao: true, peso: r.peso || 1, itens: r.itens, status: 'pendente', n: 0, tentativas: {} };
       if (feito && resp.length) {
@@ -220,7 +222,16 @@ await p.click('[data-action="periodoEq"][data-p="30"]'); await p.waitForTimeout(
 confere(/Aprovadas em 30 dias/.test(await p.locator('.pd').first().textContent()), 'desempenho em 30 dias');
 await p.click('[data-action="novaCom"]'); await p.waitForSelector('form[data-action="criar"]');
 confere(/^Resolver: Banheiro/.test(await p.inputValue('input[name="titulo"]')), 'criar tarefa a partir do alerta: ' + await p.inputValue('input[name="titulo"]'));
+confere(await p.isChecked('input[name="tipo"][value="diaria"]'), 'tarefa vinda do alerta é do dia');
+await p.click('main [data-action="tela"][data-tela="inicio"]'); await p.waitForSelector('.alr');
+confere(/Início/.test(await p.locator('h1').first().textContent()), 'Voltar da nova tarefa leva ao Início');
+await p.locator('.kpi', { hasText: 'Atrasadas' }).click(); await p.waitForSelector('.board');
+confere(await p.locator('.chip[data-action="filtro"][data-f="atrasada"][aria-pressed="true"]').count() === 1, 'KPI Atrasadas abre o quadro já filtrado');
 await p.click('.nav [data-tela="inicio"]'); await p.waitForSelector('.alr');
+await p.locator('summary', { hasText: 'Ver em tabela' }).click(); await p.waitForTimeout(200);
+confere(await overflow(p) <= 0, 'abrir a tabela do Início não alarga a página: ' + await overflow(p));
+await p.evaluate(() => window.__notify()); await p.waitForTimeout(200);
+confere(await p.locator('#eqTabela[open]').count() === 1, 'tabela do Início continua aberta depois de uma atualização');
 // tira a tarefa de hoje e põe de novo pelo alerta
 await p.evaluate(() => { for (const [k, d] of window.__store) if (k.startsWith('diarias/primavera_') && d.tarefas.r_limpeza_alto) { if (d.data === new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date())) delete d.tarefas.r_limpeza_alto; } window.__notify(); });
 await p.waitForTimeout(300);
@@ -436,7 +447,18 @@ confere(equipe(await tarefa(q, 'primavera', tit3)) === '["f_pri3"]', `arrastar e
 await trocarPessoa(q, 'f_pri2');
 await q.locator('.lt', { hasText: 'Reposição' }).click(); await q.waitForTimeout(300);
 confere(await q.locator('#sheet [data-action="enviar"]').count() === 1, 'envio antigo do Bruno continua editável');
+await q.locator('#sheet .op.feito').first().click(); await q.waitForTimeout(200);
 await q.click('#sheet .voltar');
+await trocarPessoa(q, 'gerencia'); await q.click('.nav [data-tela="quadro"]'); await q.waitForSelector('.board');
+await q.locator('[data-kcard]', { hasText: 'Reposição' }).first().click(); await q.waitForSelector('#sheet .folha');
+await q.click('#sheet [data-action="alternarResp"][data-id="f_pri2"]'); await q.waitForTimeout(200);
+confere(await q.locator('#modal [data-action="confirmarResps"]').count() === 1, 'tirar quem já começou pede confirmação');
+await q.click('#modal .btn.ghost[data-action="fecharModal"]'); await q.waitForTimeout(200);
+confere(equipe(await tarefa(q, 'primavera', 'Reposição')) === '["f_pri2"]', 'voltar na confirmação não muda nada');
+await q.click('#sheet [data-action="alternarResp"][data-id="f_pri3"]'); await q.waitForTimeout(200);
+confere(await q.locator('#modal [data-action="confirmarResps"]').count() === 0 && equipe(await tarefa(q, 'primavera', 'Reposição')) === '["f_pri2","f_pri3"]', 'pôr mais alguém não pede confirmação');
+await q.click('#sheet .voltar');
+await trocarPessoa(q, 'f_pri2');
 await q.click('.seg [data-e="mes"]'); await q.waitForTimeout(200);
 await q.locator('.lt', { hasText: 'Limpeza pesada' }).click(); await q.click('#sheet [data-action="comecar"]'); await q.waitForSelector('#sheet [data-action="enviar"]');
 await q.locator('#sheet input[data-action="video"]').setInputFiles(video('longo'));
@@ -493,6 +515,12 @@ await l.click('#sheet [data-action="enviar"]'); await l.waitForTimeout(500);
 await l.keyboard.press('Escape'); await l.click('.chip-top'); await l.click('.menu [data-action="trocarPessoa"]'); await l.click('.pessoa[data-id="gerencia"]');
 await l.click('.nav [data-tela="aprovar"]'); await l.waitForTimeout(500);
 confere(await l.locator('.galeria .mid img').count() === 1, 'local: gerência vê a foto para aprovar');
+// PIN vale também no arquivo local
+await l.click('.nav [data-tela="equipe"]'); await l.fill('input[name="novoPin"]', '2468'); await l.click('form[data-action="salvarPin"] button[type="submit"]'); await l.waitForTimeout(300);
+await l.evaluate(() => sessionStorage.clear());
+await l.keyboard.press('Escape'); await l.click('.chip-top'); await l.click('.menu [data-action="trocarPessoa"]'); await l.click('.pessoa[data-id="gerencia"]');
+confere(await l.locator('#pinEntrada').count() === 1, 'local: Gerência pede o PIN');
+await l.fill('#pinEntrada', '2468'); await l.click('form[data-action="pin"] button[type="submit"]'); await l.waitForSelector('.nav');
 // cópia e restauração
 await l.click('.nav [data-tela="mais"]');
 const [dl] = await Promise.all([l.waitForEvent('download'), l.click('[data-action="exportarLocal"]')]);
@@ -506,6 +534,9 @@ await Promise.all([l.waitForEvent('load'), l.locator('input[data-action="importa
 await l.waitForSelector('.nav'); await l.click('.nav [data-tela="quadro"]'); await l.waitForTimeout(400);
 confere(await l.locator('[data-kcard]', { hasText: 'Depois da cópia' }).count() === 0 && await l.locator('[data-kcard]', { hasText: 'Teste do arquivo local' }).count() === 1, 'local: restaurar a cópia volta os dados');
 await shot(l, '25-local-quadro');
+// duas abas: a mais nova fica com os dados, a antiga para de gravar
+const l2 = await ctx4.newPage(); vigia(l2, 'local-aba2'); await l2.goto('file://' + ARQ); await l2.waitForSelector('.nav, .pessoa, .portal, #pinEntrada', { timeout: 8000 }); await l.waitForTimeout(400);
+confere(/outra aba/.test(await l.locator('main').textContent()), 'local: a aba antiga avisa que o site foi aberto em outra aba');
 await ctx4.close();
 
 await b.close(); srv.close();

@@ -2,9 +2,12 @@
 // Os dados ficam no navegador daquele aparelho (IndexedDB). Uso (na raiz do repositório): node site/local/montar.mjs [pasta-do-site] [arquivo-de-saida]
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const SITE = path.resolve(process.argv[2] || path.join(path.dirname(new URL(import.meta.url).pathname), '..'));
-const SEED = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..', 'seed');
+const AQUI = path.dirname(fileURLToPath(import.meta.url));
+
+const SITE = path.resolve(process.argv[2] || path.join(AQUI, '..'));
+const SEED = path.resolve(AQUI, '..', 'seed');
 const ler = (f) => fs.readFileSync(f.startsWith('seed/') ? path.join(SEED, f.slice(5)) : path.join(SITE, f), 'utf8');
 const pagina = ler('index.html');
 const semente = {
@@ -17,7 +20,7 @@ const corpo = pagina.indexOf('<div id="root">');
 if (corpo < 0 || pagina.split('<script>').length !== 2) throw new Error('index.html mudou de forma: confira o gerador');
 const cabeca = pagina.slice(0, corpo).replaceAll('img/ede-icone-app.svg', logo);
 const resto = pagina.slice(corpo).replaceAll('img/ede-icone-app.svg', logo)
-  .replace('<script>', `<script>window.EDE_LOCAL = ${JSON.stringify({ semente }).replace(/</g, '\\u003c')};</script>\n<script>`);
+  .replace('<script>', () => `<script>window.EDE_LOCAL = ${JSON.stringify({ semente }).replace(/</g, '\\u003c')};</script>\n<script>`);
 const html = `<!doctype html>
 <html lang="pt-BR">
 <head>

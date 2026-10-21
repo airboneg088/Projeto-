@@ -287,6 +287,8 @@ textarea { min-height: 92px; resize: vertical; }
 .kpi .k { font-weight: 700; font-size: 14px; }
 .kpi .d { font-size: 13px; color: var(--ink-soft); }
 .kpi.ruim .v { color: var(--danger); }
+details.cartao { display: block; min-width: 0; }
+details.cartao > :not(summary) { margin-top: 10px; }
 .tabela { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--r-m); background: var(--surface); }
 table { border-collapse: collapse; width: 100%; min-width: 520px; font-size: 15px; }
 th, td { text-align: left; padding: 10px 12px; border-top: 1px solid var(--line); vertical-align: top; }
@@ -361,7 +363,7 @@ td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; white-space:
 const TZ = "America/Sao_Paulo";
 const $ = (s, el = document) => el.querySelector(s);
 const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-const fmtData = (d) => new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(d);
+const FMT_DATA = new Intl.DateTimeFormat("en-CA", { timeZone: TZ }); const fmtData = (d) => FMT_DATA.format(d);
 const hoje = () => fmtData(new Date());
 const mesAtual = () => hoje().slice(0, 7);
 const somaDias = (iso, n) => { const d = new Date(iso + "T12:00:00-03:00"); d.setUTCDate(d.getUTCDate() + n); return fmtData(d); };
@@ -369,8 +371,8 @@ const mesAnterior = (mes) => { const [y, m] = mes.split("-").map(Number); return
 const ultimoDia = (mes) => { const [y, m] = mes.split("-").map(Number); return new Date(Date.UTC(y, m, 0)).getUTCDate(); };
 const diaDoMes = (mes, dia) => `${mes}-${String(Math.min(Math.max(1, dia || 1), ultimoDia(mes))).padStart(2, "0")}`;
 const isoLocal = (data, hhmm) => new Date(`${data}T${hhmm}:00-03:00`).toISOString(); // São Paulo sem horário de verão desde 2019
-const hm = (iso) => iso ? new Intl.DateTimeFormat("pt-BR", { timeZone: TZ, hour: "2-digit", minute: "2-digit" }).format(new Date(iso)) : "";
-const dataCurta = (iso) => new Intl.DateTimeFormat("pt-BR", { timeZone: TZ, day: "2-digit", month: "2-digit" }).format(new Date(iso));
+const FMT_HM = new Intl.DateTimeFormat("pt-BR", { timeZone: TZ, hour: "2-digit", minute: "2-digit" }); const hm = (iso) => iso ? FMT_HM.format(new Date(iso)) : "";
+const FMT_DC = new Intl.DateTimeFormat("pt-BR", { timeZone: TZ, day: "2-digit", month: "2-digit" }); const dataCurta = (iso) => FMT_DC.format(new Date(iso));
 const dataHora = (iso) => iso ? `${dataCurta(iso)} ${hm(iso)}` : "";
 const nomeMes = (mes) => { const s = new Intl.DateTimeFormat("pt-BR", { timeZone: "UTC", month: "long" }).format(new Date(mes + "-15T12:00:00Z")); return s.charAt(0).toUpperCase() + s.slice(1); };
 const diaSemana = (data) => { const w = new Date(data + "T12:00:00-03:00").getUTCDay(); return w === 0 ? 7 : w; };
@@ -438,14 +440,19 @@ carregarQuem();
 // ===========================================================================
 function tentativaAtual(t) { return t.n ? t.tentativas?.[t.n] : null; }
 // Quem faz a tarefa: lista (responsaveis). Tarefas antigas têm só "responsavel".
-function resps(t) { return Array.isArray(t?.responsaveis) ? [...new Set(t.responsaveis.filter(Boolean))] : t?.responsavel ? [t.responsavel] : []; }
+// Esta versão sempre grava responsavel = primeiro da lista; se os dois discordam, a última gravação veio de um aparelho com a versão anterior.
+function resps(t) {
+  const leg = [...new Set([].concat(t?.responsavel ?? []).flat().filter(Boolean))]; if (!Array.isArray(t?.responsaveis)) return leg;
+  const l = [...new Set(t.responsaveis.filter(Boolean))]; return (l[0] || null) !== (leg[0] || null) ? leg : l;
+}
 const patchResps = (lista) => ({ responsaveis: lista, responsavel: lista[0] || null });
 function padraoDe(loja, rid) { const v = S.portais[loja]?.padrao?.[rid]; return Array.isArray(v) ? v.filter(Boolean) : v ? [v] : []; }
 // Um envio é feito em equipe: quem começou e quem tocou em "Ajudar".
 function equipeTentativa(x) { return x ? [...new Set([x.por, ...Object.keys(x.participantes || {})].filter(Boolean))] : []; }
 function participa(x, fid) { return !!x && (x.por === fid || !!x.participantes?.[fid]); }
 function aberta(x) { return !!x && !x.envio && !x.encerrada; }
-function podeEditar(t, fid) { const x = tentativaAtual(t); return aberta(x) && participa(x, fid) && resps(t).includes(fid); }
+function podeEditar(t, fid) { const x = t && tentativaAtual(t); return !!t && ["andamento", "correcao"].includes(t.status) && aberta(x) && participa(x, fid) && resps(t).includes(fid); }
+function fechouAntes(t) { if (podeEditar(t, S.quem)) return false; renderSheet(); aviso("Esta tarefa já foi enviada, cancelada ou passada para outra pessoa. A mudança não entrou.", "erro"); return true; }
 function nomesLista(loja, ids, curto = true) { const n = ids.map((id) => { const v = nomeFunc(loja, id); return curto ? v.replace(/\s*\(exemplo\)/i, "") : v; }); return !n.length ? "Ninguém ainda" : n.length === 1 ? n[0] : n.slice(0, -1).join(", ") + " e " + n[n.length - 1]; }
 function midiasDe(x) { return Object.entries(x?.midias || {}).filter(([, m]) => m && !m.removida).map(([id]) => id); }
 function primeiraEnviada(t) { const ks = Object.keys(t.tentativas || {}).map(Number).sort((a, b) => a - b); for (const k of ks) if (t.tentativas[k].envio) return k; return null; }
@@ -548,6 +555,7 @@ function tarefaParaHoje(loja, rid, r) {
 // Histórico (últimos 60 dias) — base da análise da rotina e do desempenho
 // ===========================================================================
 const DIAS_HIST = 60;
+const diasHist = () => Math.max(DIAS_HIST, ...Object.values(S.rotinas).filter((r) => r.tipo === "periodica" && r.ativa !== false).map((r) => (r.cadaDias || 7) + 1));
 const diasEntre = (a, b) => Math.round((Date.parse(b + "T12:00:00Z") - Date.parse(a + "T12:00:00Z")) / 864e5);
 const dataBR = (d) => `${d.slice(8, 10)}/${d.slice(5, 7)}`;
 const haDias = (n) => n === 0 ? "hoje" : n === 1 ? "ontem" : `há ${n} dias`;
@@ -557,9 +565,9 @@ const fmtMin = (m) => m == null ? "—" : m < 60 ? `${Math.max(1, Math.round(m))
 async function carregarHistorico(loja, forcar = false) {
   const h = S.hist[loja]; if (!S.db || !loja) return;
   if (h && (h.estado === "carregando" || (!forcar && Date.now() - h.em < 10 * 60e3))) return;
-  S.hist[loja] = { estado: "carregando", docs: h?.docs || {}, em: Date.now() };
+  S.hist[loja] = { estado: h?.estado === "ok" ? "ok" : "carregando", docs: h?.docs || {}, em: Date.now() };
   try {
-    const q = await S.db.collection("diarias").where("loja", "==", loja).where("data", ">=", somaDias(hoje(), -(DIAS_HIST - 1))).get();
+    const q = await S.db.collection("diarias").where("loja", "==", loja).where("data", ">=", somaDias(hoje(), -(diasHist() - 1))).get();
     const o = {}; q.docs.forEach((d) => { o[d.id] = d.data(); }); S.hist[loja] = { estado: "ok", docs: o, em: Date.now() };
   } catch (e) { console.warn("histórico", e); S.hist[loja] = { estado: "erro", docs: h?.docs || {}, em: Date.now() }; }
   delete S.periodicasOk[docId(loja, hoje())]; garantirPeriodicas(loja); render();
@@ -576,8 +584,10 @@ function diaFeito(t) { const x = tentativaAtual(t); return x?.envio ? fmtData(ne
 // Avulsa que fala da mesma coisa que a rotina (palavras da rotina, ou o título dela dentro do texto) conta como feita.
 function combina(r, t) {
   if (!r || t.rotina) return false; const txt = norm([t.titulo, t.instrucoes, ...Object.values(t.itens || {}).map((i) => i.texto)].join(" "));
-  if (Array.isArray(r.palavras) && r.palavras.length) return r.palavras.every((g) => (Array.isArray(g) ? g : [g]).some((w) => txt.includes(norm(w))));
-  return txt.includes(norm(r.titulo));
+  const s_ = " " + txt.replace(/[^a-z0-9]+/g, " ") + " ";
+  const tem = (w) => { const q = norm(w).replace(/[^a-z0-9]+/g, " ").trim(); return !!q && (q.includes(" ") ? s_.includes(" " + q + " ") : s_.includes(" " + q)); };
+  if (Array.isArray(r.palavras) && r.palavras.length) return r.palavras.every((g) => (Array.isArray(g) ? g : [g]).some(tem));
+  return s_.includes(" " + norm(r.titulo).replace(/[^a-z0-9]+/g, " ").trim() + " ");
 }
 function ultimaVez(loja, rid, ts = tarefasHist(loja)) {
   const r = S.rotinas[rid]; let melhor = null;
@@ -620,22 +630,23 @@ function analisarRotina(loja) {
     const u = ultimaVez(loja, rid, ts); const dias = u ? diasEntre(u.data, hj) : null;
     if (tipo === "periodica") {
       const cada = r.cadaDias || 7;
-      if (!u) out.push({ nivel: daRot.length ? "alta" : "media", peso: 50, txt: `Não há registro de “${r.titulo}” nos últimos ${DIAS_HIST} dias.`, det: `O combinado é a cada ${cada} dias.`, acao: acaoRot(rid) });
+      const prim = daRot.map((t) => t.chave).sort()[0];
+      if (!u) { if (!prim || diasEntre(prim, hj) >= cada) out.push({ nivel: daRot.some((t) => new Date(t.prazo).getTime() < agora) ? "alta" : "media", peso: 50, txt: prim ? `“${r.titulo}” não foi feita desde ${dataBR(prim)}.` : `Não há registro de “${r.titulo}” nos últimos ${diasHist()} dias.`, det: `O combinado é a cada ${cada} dias.`, acao: acaoRot(rid) }); }
       else if (dias > cada) out.push({ nivel: dias >= 2 * cada ? "alta" : "media", peso: dias / cada, txt: `Faz ${dias} dias que não fazem “${r.titulo}”.`, det: `O combinado é a cada ${cada} dias. Última vez em ${dataBR(u.data)}${quem(u)}.`, acao: acaoRot(rid) });
     } else if (tipo === "diaria") {
       const passados = daRot.filter((t) => t.tipo === "diaria" && venceu(t));
       const recentes = passados.filter((t) => t.chave >= somaDias(hj, -13));
       const okR = recentes.filter(feita).length;
       const pulouDesde = u ? passados.filter((t) => t.chave > u.data && !feita(t)).length : passados.length;
-      if (pulouDesde >= 2 && (dias == null || dias >= 2)) out.push({ nivel: pulouDesde >= 3 ? "alta" : "media", peso: pulouDesde, txt: u ? `Faz ${dias} dias que ninguém faz “${r.titulo}”.` : `“${r.titulo}” não foi feita nenhuma vez nos últimos ${DIAS_HIST} dias.`, det: u ? `Última vez em ${dataBR(u.data)}${quem(u)}. Ficou sem fazer em ${pulouDesde} dias seguidos.` : `Ficou sem fazer em ${pulouDesde} dias.`, acao: acaoRot(rid) });
+      if (pulouDesde >= 2 && (dias == null || dias >= 2)) out.push({ nivel: pulouDesde >= 3 ? "alta" : "media", peso: pulouDesde, txt: u ? `Faz ${dias} dias que ninguém faz “${r.titulo}”.` : `“${r.titulo}” não foi feita nenhuma vez desde ${dataBR(passados.map((t) => t.chave).sort()[0])}.`, det: u ? `Última vez em ${dataBR(u.data)}${quem(u)}. Ficou sem fazer em ${pulouDesde} dias seguidos.` : `Ficou sem fazer em ${pulouDesde} dias.`, acao: acaoRot(rid) });
       else if (recentes.length >= 4 && okR / recentes.length < 0.7) out.push({ nivel: okR / recentes.length < 0.4 ? "alta" : "media", peso: 1 - okR / recentes.length, txt: `“${r.titulo}” foi feita em ${okR} de ${recentes.length} dias.`, det: "Últimos 14 dias.", acao: acaoRot(rid) });
       if (passados.length >= 10 && passados.filter(feita).length / passados.length >= 0.7) {
         const porDia = {}; for (const t of passados) { const w = diaSemana(t.chave); (porDia[w] ||= [0, 0])[1]++; if (feita(t)) porDia[w][0]++; }
         for (const [w, [okW, nW]] of Object.entries(porDia)) if (nW >= 3 && okW / nW <= 0.34) out.push({ nivel: "info", peso: 1 - okW / nW, txt: `${DIAS_SEMANA[w]}, “${r.titulo}” quase nunca é feita (${okW} de ${nW}).`, det: "Nos outros dias ela é feita. Vale ver a escala desse dia." });
       }
-      const enviadas = daRot.filter((t) => tentativaAtual(t)?.envio).sort((a, b) => (b.chave > a.chave ? 1 : -1)).slice(0, 10);
-      const tarde = enviadas.filter((t) => new Date(tentativaAtual(t).envio) > new Date(t.prazo)).length;
-      if (enviadas.length >= 4 && tarde / enviadas.length >= 0.5) out.push({ nivel: "info", peso: tarde / enviadas.length, txt: `“${r.titulo}” costuma ser enviada depois do horário (${tarde} de ${enviadas.length}).`, det: `O horário combinado é até ${esc(r.fim || "18:00")}.` });
+      const enviadas = daRot.filter((t) => primeiraEnviada(t) != null).sort((a, b) => (b.chave > a.chave ? 1 : -1)).slice(0, 10);
+      const tarde = enviadas.filter((t) => new Date(t.tentativas[primeiraEnviada(t)].envio) > new Date(t.prazo)).length;
+      if (enviadas.length >= 4 && tarde / enviadas.length >= 0.5) out.push({ nivel: "info", peso: tarde / enviadas.length, txt: `“${r.titulo}” costuma ser enviada depois do horário (${tarde} de ${enviadas.length}).`, det: `O horário combinado é até ${r.fim || "18:00"}.` });
     } else if (tipo === "mensal") {
       const atual = daRot.find((t) => t.tipo === "mensal" && t.chave === mesAtual());
       if (atual && !feita(atual) && new Date(atual.prazo).getTime() < agora) out.push({ nivel: "alta", peso: 10, txt: `“${r.titulo}” do mês está atrasada.`, det: `O prazo era ${dataCurta(atual.prazo)}.`, acao: { tipo: "abrir", ref: refDe(atual), l: "Abrir a tarefa" } });
@@ -654,7 +665,8 @@ function analisarRotina(loja) {
   return out.sort((a, b) => (ordem[a.nivel] - ordem[b.nivel]) || (b.peso - a.peso));
 }
 // Desempenho por pessoa: carga agora, produção, tempo para terminar, prazo e correções.
-// Ritmo: tempo gasto ÷ tempo que a tarefa tinha (do mês: ÷ tempo normal da rotina), comparado com a mediana da loja. Assim dá para comparar quem faz rotinas diferentes.
+// Ritmo: tempo do 1º envio ÷ tempo normal da mesma rotina na loja (mediana de 60 dias, mínimo 3 envios). Só compara quem faz a mesma coisa;
+// correção não conta como tempo (seria um envio curto). Produção: pontos por dia em que a pessoa tinha tarefa (quem entrou agora não é punido).
 function desempenho(loja, dias) {
   const ini = somaDias(hoje(), -(dias - 1)); const iniMs = new Date(isoLocal(ini, "00:00")).getTime();
   const P = Object.fromEntries(funcionarios(loja).map(([id, f]) => [id, { id, nome: f.nome, funcao: f.funcao || "", abertas: 0, carga: 0, atrasadas: 0, aprovadas: 0, pontos: 0, envios: 0, noPrazo: 0, correcoes: 0, minutos: [], razoes: [], selos: [] }]));
@@ -664,28 +676,30 @@ function desempenho(loja, dias) {
   }
   const envs = [];
   for (const t of tarefasHist(loja)) for (const [k, x] of Object.entries(t.tentativas || {})) {
-    if (!x.envio || new Date(x.envio).getTime() < iniMs) continue;
+    if (!x.envio || new Date(x.envio).getTime() < iniMs || t.status === "cancelada") continue;
     const dur = (new Date(x.envio) - new Date(x.inicio)) / 60000;
     envs.push({ t, x, k: Number(k), eq: equipeTentativa(x), dur: isFinite(dur) && dur >= 0 ? Math.min(dur, 720) : null });
   }
-  const porRot = {}; for (const e of envs) if (e.t.tipo === "mensal" && e.t.rotina && e.dur != null) (porRot[e.t.rotina] ||= []).push(e.dur);
-  const normalMes = Object.fromEntries(Object.entries(porRot).filter(([, v]) => v.length >= 3).map(([k, v]) => [k, mediana(v)]));
-  const base = (t) => t.tipo === "mensal" ? normalMes[t.rotina] || null : Math.max(15, (new Date(t.prazo) - new Date(t.inicio)) / 60000);
-  for (const e of envs) { const b = e.dur != null ? base(e.t) : null; e.razao = b ? e.dur / b : null; }
-  const todas = envs.map((e) => e.razao).filter((v) => v != null); const mLoja = todas.length >= 5 ? mediana(todas) : null;
+  const ts = tarefasHist(loja); const chaveRot = (t) => t.rotina || "av:" + norm(t.titulo); const porRot = {};
+  for (const t of ts) { const k1 = primeiraEnviada(t); const x = k1 != null && t.tentativas[k1]; const d = x ? (new Date(x.envio) - new Date(x.inicio)) / 60000 : NaN; if (isFinite(d) && d >= 0) (porRot[chaveRot(t)] ||= []).push(Math.min(d, 720)); }
+  const normal = Object.fromEntries(Object.entries(porRot).filter(([, v]) => v.length >= 3).map(([k, v]) => [k, Math.max(1, mediana(v))]));
+  for (const e of envs) { e.primeiro = e.k === primeiraEnviada(e.t); const b = e.dur != null && e.primeiro ? normal[chaveRot(e.t)] : null; e.razao = b ? e.dur / b : null; }
+  const diasP = {}; for (const t of ts) { if (t.tipo !== "diaria" || t.chave < ini) continue; for (const id of new Set([...resps(t), ...Object.values(t.tentativas || {}).flatMap(equipeTentativa)])) (diasP[id] ||= new Set()).add(t.chave); }
   for (const e of envs) {
-    const aprov = e.t.status === "aprovada" && e.k === e.t.n; const corr = e.x.revisao?.decisao === "reprovada"; const noPrazo = new Date(e.x.envio) <= new Date(e.t.prazo);
-    for (const id of e.eq) { const p = P[id]; if (!p) continue; p.envios++; if (corr) p.correcoes++; if (aprov) { p.aprovadas++; p.pontos += (e.t.peso || 1) / e.eq.length; if (noPrazo) p.noPrazo++; } if (e.dur != null) p.minutos.push(e.dur); if (e.razao != null) p.razoes.push(e.razao); }
+    const aprov = e.t.status === "aprovada" && e.k === e.t.n; const corr = e.x.revisao?.decisao === "reprovada"; const k1 = primeiraEnviada(e.t); const noPrazo = k1 != null && new Date(e.t.tentativas[k1].envio) <= new Date(e.t.prazo);
+    for (const id of e.eq) { const p = P[id]; if (!p) continue; p.envios++; if (corr) p.correcoes++; if (aprov) { p.aprovadas++; p.pontos += (e.t.peso || 1) / e.eq.length; if (noPrazo) p.noPrazo++; } if (e.dur != null && e.primeiro) p.minutos.push(e.dur); if (e.razao != null) p.razoes.push(e.razao); }
   }
   const lista = Object.values(P); const n = lista.length || 1;
-  const mCarga = lista.reduce((a, p) => a + p.carga, 0) / n, mPts = lista.reduce((a, p) => a + p.pontos, 0) / n, totApr = lista.reduce((a, p) => a + p.aprovadas, 0);
+  for (const p of lista) { p.dias = diasP[p.id]?.size || 0; p.ppd = p.dias ? p.pontos / p.dias : 0; }
+  const comDias = lista.filter((p) => p.dias >= 3);
+  const mCarga = lista.reduce((a, p) => a + p.carga, 0) / n, mPpd = comDias.length ? comDias.reduce((a, p) => a + p.ppd, 0) / comDias.length : 0, totApr = lista.reduce((a, p) => a + p.aprovadas, 0);
   for (const p of lista) {
-    p.tempo = mediana(p.minutos); p.indice = mLoja && p.razoes.length >= 2 ? mediana(p.razoes) / mLoja : null;
+    p.tempo = mediana(p.minutos); p.indice = p.razoes.length >= 4 ? mediana(p.razoes) : null;
     if (lista.length >= 2 && mCarga > 0) { if (p.carga >= 1.5 * mCarga && p.abertas >= 3) p.selos.push(["alta", "Muitas tarefas", I.alerta]); else if (p.carga <= 0.5 * mCarga) p.selos.push(["baixa", "Poucas tarefas", I.relogio]); }
-    if (lista.length >= 2 && totApr >= 3 && mPts > 0) { if (p.pontos >= 1.3 * mPts) p.selos.push(["bom", "Produção alta", I.ok]); else if (p.pontos <= 0.6 * mPts) p.selos.push(["ruim", "Produção baixa", I.alerta]); }
+    if (comDias.length >= 2 && p.dias >= 3 && totApr >= 3 && mPpd > 0) { if (p.ppd >= 1.3 * mPpd) p.selos.push(["bom", "Produção alta", I.ok]); else if (p.ppd <= 0.6 * mPpd) p.selos.push(["ruim", "Produção baixa", I.alerta]); }
     if (p.indice != null) { if (p.indice <= 0.8) p.selos.push(["bom", "Termina rápido", I.play]); else if (p.indice >= 1.25) p.selos.push(["ruim", "Demora para terminar", I.ampulheta]); }
   }
-  return { lista, mCarga, mPts };
+  return { lista, mCarga, mPpd };
 }
 
 // ===========================================================================
@@ -707,6 +721,7 @@ async function processarFoto(file, t, x) {
   const mid = uid("m_"); const base = { tipo: "foto", sha, loja: t.loja, tarefa: refDe(t), tentativa: t.n, por: S.quem, capturadaEm: file.lastModified ? new Date(file.lastModified).toISOString() : null, enviadaEm: new Date().toISOString() };
   const up = await subirArquivo(await (await fetch(url)).blob(), "image/jpeg");
   await S.db.doc(`midias/${mid}`).set(up ? { ...base, asset: up.id, mime: up.contentType } : { ...base, dataUrl: url });
+  { const f_ = acharTarefa(refDe(t)); if (!f_ || f_.n !== t.n || !podeEditar(f_, S.quem)) { await S.db.doc(`midias/${mid}`).update({ removida: true }).catch(() => {}); throw new Error("A tarefa já foi enviada ou passada para outra pessoa; esta mídia não entrou."); } }
   await atualizarTarefa(t, { tentativas: { [t.n]: { midias: { [mid]: { tipo: "foto" } } } } });
 }
 function carimbar(g, w, h, texto) {
@@ -787,6 +802,7 @@ async function processarVideo(file, t, x, aoProgredir) {
     for (let i = 0; i < n; i++) { await S.db.doc(`midias/${mid}/partes/${i}`).set({ d: b64.slice(i * MAX_PARTE, (i + 1) * MAX_PARTE) }); aoProgredir(0.9 + (0.1 * (i + 1)) / n); }
     await S.db.doc(`midias/${mid}`).set({ ...base, partes: n, mime: blob.type || "video/webm" });
   }
+  { const f_ = acharTarefa(refDe(t)); if (!f_ || f_.n !== t.n || !podeEditar(f_, S.quem)) { await S.db.doc(`midias/${mid}`).update({ removida: true }).catch(() => {}); throw new Error("A tarefa já foi enviada ou passada para outra pessoa; esta mídia não entrou."); } }
   await atualizarTarefa(t, { tentativas: { [t.n]: { midias: { [mid]: { tipo: "video" } } } } });
 }
 async function carregarMidia(id) {
@@ -820,8 +836,9 @@ function render() {
   if (drag?.ativo) { S.renderPendente = true; return; }
   const guard = {};
   root.querySelectorAll("form[data-action] [name]").forEach((el) => { const k = el.closest("form").dataset.action + ":" + el.name + (el.type === "radio" || el.type === "checkbox" ? ":" + el.value : ""); guard[k] = el.type === "checkbox" || el.type === "radio" ? el.checked : el.value; });
-  const sy = window.scrollY; const bl = $(".board")?.scrollLeft || 0;
+  const sy = window.scrollY; const bl = $(".board")?.scrollLeft || 0; const abertos = [...root.querySelectorAll("details[id][open]")].map((d) => d.id);
   renderInterno();
+  abertos.forEach((id) => { const d = document.getElementById(id); if (d) d.open = true; });
   root.querySelectorAll("form[data-action] [name]").forEach((el) => { const k = el.closest("form").dataset.action + ":" + el.name + (el.type === "radio" || el.type === "checkbox" ? ":" + el.value : ""); if (k in guard && el.type !== "file") { if (el.type === "checkbox" || el.type === "radio") el.checked = guard[k]; else el.value = guard[k]; } });
   const b = $(".board"); if (b) b.scrollLeft = bl; if (Math.abs(window.scrollY - sy) > 2) window.scrollTo(0, sy);
 }
@@ -837,7 +854,7 @@ function renderInterno() {
     if (!gerenciaLiberada(loja)) { root.innerHTML = topo() + `<main><div class="wrap estreito">${telaPin(loja)}</div></main>`; renderMenu(); setTimeout(() => $("#pinEntrada")?.focus(), 30); return; }
     const itens = [{ id: "inicio", l: "Início", ic: "inicio" }, { id: "quadro", l: "Quadro", ic: "quadro" }, { id: "aprovar", l: "Aprovar", ic: "aprovar", n: fila(loja).length }, { id: "equipe", l: "Equipe", ic: "equipe" }, { id: "mais", l: "Mais", ic: "mais" }];
     if (!["inicio", "quadro", "aprovar", "equipe", "mais", "rotinas", "painel", "nova"].includes(S.tela)) S.tela = "inicio";
-    const atual = ["rotinas", "painel"].includes(S.tela) ? "mais" : S.tela === "nova" ? "quadro" : S.tela;
+    const atual = ["rotinas", "painel"].includes(S.tela) ? "mais" : S.tela === "nova" ? (S.novaPre?.de || "quadro") : S.tela;
     root.innerHTML = topo() + `<nav class="nav" aria-label="Navegação"><div class="wrap">${itens.map((a) => `<button data-action="tela" data-tela="${a.id}" ${atual === a.id ? 'aria-current="page"' : ""}>${I[a.ic]}<span>${a.l}</span>${a.n ? `<span class="n num" aria-label="${a.n} para aprovar">${a.n}</span>` : ""}</button>`).join("")}</div></nav>`
       + `<main class="com-nav"><div class="wrap ${["quadro", "inicio"].includes(S.tela) ? "" : "estreito"}">${telaGerencia(loja)}</div></main>`;
   } else root.innerHTML = topo() + `<main><div class="wrap estreito">${telaFuncionario(loja, S.quem)}</div></main>`;
@@ -860,7 +877,7 @@ function renderMenu() {
 }
 function vazio(t, d, acao = "", ok = true) { return `<div class="vazio">${ok ? `<span class="ic">${I.check}</span>` : ""}<h2>${esc(t)}</h2><p>${esc(d)}</p>${acao}</div>`; }
 function telaErro() {
-  const m = { fora: ["Abra pelo link do Éde Gestão", "Este site funciona dentro do claude.ai. Abra o link que a proprietária compartilhou."], semdb: ["Não consegui carregar os dados", "Recarregue a página. Se continuar, confira se você está com a conta certa no claude.ai."], revogado: ["Seu acesso mudou", "Recarregue a página para continuar."], local: ["Não consegui abrir os dados deste aparelho", "O navegador bloqueou o armazenamento. Abra o arquivo no Chrome, Edge ou Safari, fora da janela anônima."] }[S.erroGeral] || ["Algo deu errado", "Recarregue a página."];
+  const m = { fora: ["Abra pelo link do Éde Gestão", "Este site funciona dentro do claude.ai. Abra o link que a proprietária compartilhou."], semdb: ["Não consegui carregar os dados", "Recarregue a página. Se continuar, confira se você está com a conta certa no claude.ai."], revogado: ["Seu acesso mudou", "Recarregue a página para continuar."], outraAba: ["O Éde Gestão foi aberto em outra aba", "Use a aba mais nova. Para voltar a usar esta, recarregue a página."], local: ["Não consegui abrir os dados deste aparelho", "O navegador bloqueou o armazenamento. Abra o arquivo no Chrome, Edge ou Safari, fora da janela anônima."] }[S.erroGeral] || ["Algo deu errado", "Recarregue a página."];
   return vazio(m[0], m[1], "", false);
 }
 
@@ -888,7 +905,7 @@ function telaQuem(loja) {
       <button class="pessoa g" data-action="souEu" data-id="gerencia"><span class="av" aria-hidden="true">${I.cadeado.replace("<svg", '<svg width="26" height="26"')}</span><b>Gerência</b><span>${pin ? "Pede o PIN" : "Quadro, aprovações e equipe"}</span></button></div>
     ${fs.length ? "" : `<p class="soft">Ainda não há funcionários nesta loja. Entre em Gerência e cadastre a equipe.</p>`}`;
 }
-function gerenciaLiberada(loja) { return S.isOwner || !S.portais[loja]?.pinHash || sessao.get("ede.lib." + loja) === S.portais[loja].pinHash; }
+function gerenciaLiberada(loja) { return (S.isOwner && !S.local) || !S.portais[loja]?.pinHash || sessao.get("ede.lib." + loja) === S.portais[loja].pinHash; }
 function telaPin(loja) {
   return `<form class="form" data-action="pin" style="max-width:420px;justify-self:center;width:100%"><h1>Gerência</h1><p class="soft">Digite o PIN da gerência da ${esc(lojaNome(loja))}.</p>
     <label class="f">PIN<input id="pinEntrada" class="pin" name="pin" type="password" inputmode="numeric" autocomplete="off" maxlength="8"></label><p class="erro" id="erroPin" role="alert"></p>
@@ -919,7 +936,7 @@ function quando(t) { return t.tipo === "mensal" ? `até ${dataCurta(t.prazo)}` :
 function linhaFunc(t, foco) {
   const s = statusVisivel(t); const x = tentativaAtual(t);
   const outros = resps(t).filter((id) => id !== S.quem); const junto = outros.length && resps(t).includes(S.quem) ? `Com ${nomesLista(t.loja, outros)}. ` : "";
-  const sub = junto + (s === "correcao" && x?.revisao?.motivo ? "Corrigir: " + x.revisao.motivo : aberta(x) && !participa(x, S.quem) && resps(t).includes(S.quem) ? `${nomesLista(t.loja, equipeTentativa(x))} já começou.` : resumir(t.instrucoes, 72));
+  const sub = junto + (s === "correcao" && x?.revisao?.motivo ? "Corrigir: " + x.revisao.motivo : aberta(x) && !participa(x, S.quem) && resps(t).includes(S.quem) ? `${nomesLista(t.loja, equipeTentativa(x))} ${equipeTentativa(x).length > 1 ? "já começaram" : "já começou"}.` : resumir(t.instrucoes, 72));
   return `<button class="lt ${foco ? "foco" : ""} ${s === "atrasada" && foco ? "atr" : ""} ${concluida(t) || t.status === "enviada" ? "feita" : ""}" data-action="abrir" data-ref="${esc(refDe(t))}">
     <span class="h num">${t.tipo === "mensal" ? dataCurta(t.prazo) : hm(t.inicio)}<small>${t.tipo === "mensal" ? "prazo" : "até " + hm(t.prazo)}</small></span><span><span class="tt">${esc(t.titulo)}</span><span class="m">${esc(sub)}</span></span>${badge(s)}</button>`;
 }
@@ -944,9 +961,10 @@ function telaInicio(loja) {
   const ts = [...tarefasHoje(loja), ...tarefasMes(loja)].filter((t) => t.status !== "cancelada");
   const abertas = ts.filter((t) => !concluida(t) && t.status !== "enviada").length, atrasadas = ts.filter((t) => statusVisivel(t) === "atrasada").length;
   const semResp = ts.filter((t) => !resps(t).length && !concluida(t) && t.status !== "enviada").length, aprovar = fila(loja).length;
-  const kpi = (v, k, d, ruim, tela) => `<button class="kpi ${ruim ? "ruim" : ""}" style="text-align:left;cursor:pointer;font:inherit;color:inherit" data-action="tela" data-tela="${tela}"><span class="v num">${v}</span><span class="k">${k}</span><span class="d">${d}</span></button>`;
+  const escopoDe = (f) => tarefasHoje(loja).some((t) => f(t)) ? "hoje" : "mes";
+  const kpi = (v, k, d, ruim, tela, f = "", e = "") => `<button class="kpi ${ruim ? "ruim" : ""}" style="text-align:left;cursor:pointer;font:inherit;color:inherit" data-action="tela" data-tela="${tela}"${f ? ` data-f="${f}"` : ""}${e ? ` data-e="${e}"` : ""}><span class="v num">${v}</span><span class="k">${k}</span><span class="d">${d}</span></button>`;
   return `<div class="linha entre"><h1>Início</h1><span class="soft">${esc(lojaNome(loja))} · ${esc(new Intl.DateTimeFormat("pt-BR", { timeZone: TZ, weekday: "long", day: "2-digit", month: "2-digit" }).format(new Date()))}</span></div>
-    <div class="kpis">${kpi(abertas, "Abertas agora", "hoje e do mês", false, "quadro")}${kpi(aprovar, "Para aprovar", "esperando você", false, "aprovar")}${kpi(atrasadas, "Atrasadas", "passou do prazo", atrasadas > 0, "quadro")}${kpi(semResp, "Sem responsável", "em A distribuir", semResp > 0, "quadro")}</div>
+    <div class="kpis">${kpi(abertas, "Abertas agora", "hoje e do mês", false, "quadro")}${kpi(aprovar, "Para aprovar", "esperando você", false, "aprovar")}${kpi(atrasadas, "Atrasadas", "passou do prazo", atrasadas > 0, "quadro", "atrasada", escopoDe((t) => statusVisivel(t) === "atrasada"))}${kpi(semResp, "Sem responsável", "em A distribuir", semResp > 0, "quadro", "", escopoDe((t) => !resps(t).length && !concluida(t) && t.status !== "enviada"))}</div>
     <section class="pilha"><div class="linha entre"><h2>Precisa de atenção</h2>${h?.estado === "ok" || h?.estado === "erro" ? `<button class="btn ghost sm" data-action="atualizarHist">Atualizar</button>` : ""}</div>${blocoAtencao(loja, h)}</section>
     <section class="pilha"><div class="linha entre"><h2>Desempenho da equipe</h2><div class="seg" role="group" aria-label="Período"><button data-action="periodoEq" data-p="7" aria-pressed="${per === 7}">7 dias</button><button data-action="periodoEq" data-p="30" aria-pressed="${per === 30}">30 dias</button></div></div>${blocoEquipe(loja, h, per)}</section>`;
 }
@@ -954,7 +972,7 @@ function blocoAtencao(loja, h) {
   if (!h || h.estado === "carregando") return `<div class="carregando" aria-label="Analisando a rotina"><div class="sk"></div><div class="sk"></div></div>`;
   if (h.estado === "erro") return `<p class="cartao">Não consegui ler o histórico da loja. Confira a internet e toque em Atualizar.</p>`;
   const al = analisarRotina(loja);
-  if (!al.length) return `<div class="vazio"><span class="ic">${I.check}</span><h3>Rotina em dia</h3><p>Nada parado há mais tempo que o combinado nos últimos ${DIAS_HIST} dias.</p></div>`;
+  if (!al.length) return `<div class="vazio"><span class="ic">${I.check}</span><h3>Rotina em dia</h3><p>Nada parado há mais tempo que o combinado nos últimos ${diasHist()} dias.</p></div>`;
   const ver = S.todosAlertas ? al : al.slice(0, 6); const rot = { alta: "Urgente", media: "Atenção", info: "Para observar" }; const ic = { alta: I.alerta, media: I.relogio, info: I.ajuda.replace("<svg", '<svg width="16" height="16"') };
   const botao = (a) => !a ? "" : a.tipo === "abrir" ? `<button class="btn secondary sm" data-action="abrir" data-ref="${esc(a.ref)}">${esc(a.l)}</button>` : a.tipo === "porHoje" ? `<button class="btn secondary sm" data-action="porHoje" data-rot="${esc(a.rid)}">${esc(a.l)}</button>` : `<button class="btn secondary sm" data-action="novaCom" data-titulo="${esc(a.titulo)}" data-instr="${esc(a.instr)}">${esc(a.l)}</button>`;
   return `<div class="atencao">${ver.map((a) => `<div class="alr ${a.nivel}"><span class="ic" aria-hidden="true">${ic[a.nivel]}</span><div class="tx"><span class="nv">${rot[a.nivel]}</span><b>${esc(a.txt)}</b><span class="d">${esc(a.det)}</span>${a.acao ? `<div class="acoes">${botao(a.acao)}</div>` : ""}</div></div>`).join("")}</div>
@@ -971,23 +989,23 @@ function blocoEquipe(loja, h, per) {
     const porCarga = [...lista].sort((a, b) => b.carga - a.carga || b.abertas - a.abertas);
     const [mais, menos] = [porCarga[0], porCarga.at(-1)];
     if (mais.abertas - menos.abertas >= 2 && mais.carga >= 1.3 * menos.carga) { dest.push(["Mais tarefas abertas", nm(porCarga[0]), `${porCarga[0].abertas} abertas agora`]); dest.push(["Menos tarefas abertas", nm(porCarga.at(-1)), `${porCarga.at(-1).abertas} abertas agora`]); }
-    const porPts = [...lista].sort((a, b) => b.pontos - a.pontos); if (porPts[0].pontos > 0) dest.push(["Mais produção", nm(porPts[0]), `${porPts[0].aprovadas} aprovadas · ${pts(porPts[0].pontos)} pts`]);
+    const porPpd = lista.filter((p) => p.dias >= 3).sort((a, b) => b.ppd - a.ppd); if (porPpd.length >= 2 && porPpd[0].ppd > porPpd[1].ppd) dest.push(["Mais produção", nm(porPpd[0]), `${pts(porPpd[0].ppd)} pts por dia · ${porPpd[0].aprovadas} aprovadas`]);
     const ritmo = lista.filter((p) => p.indice != null).sort((a, b) => a.indice - b.indice);
-    if (ritmo.length >= 2 && ritmo[0].indice < ritmo.at(-1).indice) { dest.push(["Termina mais rápido", nm(ritmo[0]), `${Math.round((1 - ritmo[0].indice) * 100)}% mais rápido que a média`]); dest.push(["Demora mais", nm(ritmo.at(-1)), `${Math.round((ritmo.at(-1).indice - 1) * 100)}% mais lento que a média`]); }
+    if (ritmo.length >= 2) { const r0 = ritmo[0], r1 = ritmo.at(-1); if (r0.indice <= 0.9) dest.push(["Termina mais rápido", nm(r0), `${Math.round((1 - r0.indice) * 100)}% mais rápido que o normal`]); if (r1 !== r0 && r1.indice >= 1.1) dest.push(["Demora mais", nm(r1), `${Math.round((r1.indice - 1) * 100)}% mais lento que o normal`]); }
   }
-  const ritmoTxt = (p) => p.indice == null ? "Ainda sem envios suficientes para comparar o tempo." : Math.abs(p.indice - 1) < 0.1 ? "Termina no ritmo médio da loja." : p.indice < 1 ? `Termina ${Math.round((1 - p.indice) * 100)}% mais rápido que a média da loja.` : `Leva ${Math.round((p.indice - 1) * 100)}% mais tempo que a média da loja.`;
+  const ritmoTxt = (p) => p.indice == null ? "Ainda sem envios suficientes para comparar o tempo." : Math.abs(p.indice - 1) < 0.1 ? "Termina no tempo normal das mesmas rotinas." : p.indice < 1 ? `Termina ${Math.round((1 - p.indice) * 100)}% mais rápido que o normal das mesmas rotinas.` : `Leva ${Math.round((p.indice - 1) * 100)}% mais tempo que o normal das mesmas rotinas.`;
   const ordenada = [...lista].sort((a, b) => b.carga - a.carga || a.nome.localeCompare(b.nome));
   return `${dest.length ? `<div class="destaques">${dest.map(([k, n, d]) => `<div class="dest"><span class="k">${esc(k)}</span><b>${esc(n)}</b><span class="d num">${esc(d)}</span></div>`).join("")}</div>` : ""}
     <div class="eqs">${ordenada.map((p) => `<article class="pd"><div class="cabp"><span class="av" aria-hidden="true">${esc(iniciais(p.nome))}</span><div style="flex:1;min-width:0"><b>${esc(p.nome)}</b><span class="f">${esc(p.funcao)}</span></div><button class="btn ghost sm" data-action="verPessoa" data-id="${esc(p.id)}">Ver no quadro</button></div>
       ${p.selos.length ? `<div class="selos">${p.selos.map(([c, l, i]) => `<span class="selo ${c}">${i}${esc(l)}</span>`).join("")}</div>` : ""}
       <div class="med"><div class="lin"><span>Abertas agora</span><b>${p.abertas}${p.atrasadas ? ` (${p.atrasadas} atrasada${p.atrasadas > 1 ? "s" : ""})` : ""}</b></div><div class="medb" title="${p.abertas} abertas, ${pts(p.carga)} pontos de carga"><i class="${p.carga ? "" : "zero"}" style="width:${Math.round((p.carga / maxCarga) * 100)}%"></i></div></div>
-      <div class="med"><div class="lin"><span>Aprovadas em ${per} dias</span><b>${p.aprovadas} · ${pts(p.pontos)} pts</b></div><div class="medb" title="${p.aprovadas} aprovadas, ${pts(p.pontos)} pontos"><i class="${p.pontos ? "" : "zero"}" style="width:${Math.round((p.pontos / maxPts) * 100)}%"></i></div></div>
+      <div class="med"><div class="lin"><span>Aprovadas em ${per} dias</span><b>${p.aprovadas} · ${pts(p.pontos)} pts${p.dias ? ` · ${pts(p.ppd)}/dia` : ""}</b></div><div class="medb" title="${p.aprovadas} aprovadas, ${pts(p.pontos)} pontos"><i class="${p.pontos ? "" : "zero"}" style="width:${Math.round((p.pontos / maxPts) * 100)}%"></i></div></div>
       <div class="med2"><div><span>Tempo para terminar</span><b>${fmtMin(p.tempo)}</b></div><div><span>No prazo</span><b>${p.aprovadas ? Math.round((p.noPrazo / p.aprovadas) * 100) + "%" : "—"}</b></div><div><span>Correções pedidas</span><b>${p.correcoes}</b></div></div>
       <p class="soft small">${esc(ritmoTxt(p))}</p></article>`).join("")}</div>
-    <details class="cartao"><summary style="cursor:pointer;font-weight:700;min-height:44px;display:flex;align-items:center">Ver em tabela e como é calculado</summary>
+    <details class="cartao" id="eqTabela"><summary style="cursor:pointer;font-weight:700;min-height:44px;display:flex;align-items:center">Ver em tabela e como é calculado</summary>
       <div class="tabela"><table><thead><tr><th>Pessoa</th><th class="n">Abertas</th><th class="n">Atrasadas</th><th class="n">Aprovadas</th><th class="n">Pontos</th><th class="n">Tempo (mediana)</th><th class="n">Ritmo</th><th class="n">No prazo</th><th class="n">Correções</th></tr></thead>
       <tbody>${ordenada.map((p) => `<tr><td>${esc(p.nome)}</td><td class="n">${p.abertas}</td><td class="n">${p.atrasadas}</td><td class="n">${p.aprovadas}</td><td class="n">${pts(p.pontos)}</td><td class="n">${fmtMin(p.tempo)}</td><td class="n">${p.indice == null ? "—" : String(Math.round(p.indice * 100) / 100).replace(".", ",") + "×"}</td><td class="n">${p.aprovadas ? Math.round((p.noPrazo / p.aprovadas) * 100) + "%" : "—"}</td><td class="n">${p.correcoes}</td></tr>`).join("")}</tbody></table></div>
-      <ul class="resp small"><li><span>•</span><span><b>Abertas agora</b>: tarefas de hoje e do mês ainda não enviadas. A barra usa o peso das tarefas; tarefa em equipe é dividida entre as pessoas.</span></li><li><span>•</span><span><b>Aprovadas e pontos</b>: tarefas aprovadas no período; os pontos são o peso da tarefa, divididos entre quem fez junto.</span></li><li><span>•</span><span><b>Tempo para terminar</b>: do Começar até o envio. O <b>ritmo</b> divide esse tempo pelo tempo que a tarefa tinha (horário da tarefa; nas do mês, o tempo normal daquela rotina) e compara com a média da loja: 1,0× é a média, abaixo é mais rápido. Precisa de 5 envios na loja e 2 da pessoa.</span></li><li><span>•</span><span><b>Muitas / poucas tarefas</b>: carga 50% acima ou abaixo da média da equipe. <b>Produção alta / baixa</b>: pontos 30% acima ou 40% abaixo da média.</span></li></ul></details>`;
+      <ul class="resp small"><li><span>•</span><span><b>Abertas agora</b>: tarefas de hoje e do mês ainda não enviadas. A barra usa o peso das tarefas; tarefa em equipe é dividida entre as pessoas.</span></li><li><span>•</span><span><b>Aprovadas e pontos</b>: tarefas aprovadas no período; os pontos são o peso da tarefa, divididos entre quem fez junto. <b>Por dia</b>: pontos divididos pelos dias em que a pessoa tinha tarefa (quem entrou há pouco ou estava de folga não é prejudicado).</span></li><li><span>•</span><span><b>Tempo para terminar</b>: do Começar até o primeiro envio (correção não conta). O <b>ritmo</b> compara esse tempo com o tempo normal da mesma rotina na loja nos últimos ${diasHist()} dias: 1,0× é o normal, abaixo é mais rápido. Só aparece com 4 envios da pessoa em rotinas que já têm 3 envios — por isso compara melhor quando as rotinas mudam de mão.</span></li><li><span>•</span><span><b>No prazo</b>: pelo primeiro envio; correção pedida depois não vira atraso. <b>Muitas / poucas tarefas</b>: carga 50% acima ou abaixo da média da equipe. <b>Produção alta / baixa</b>: pontos por dia 30% acima ou 40% abaixo da média de quem tinha tarefa em 3 dias ou mais.</span></li></ul></details>`;
 }
 function voltar(tela) { return `<div><button class="btn ghost sm" data-action="tela" data-tela="${tela}" style="padding-left:0">${I.setaE}Voltar</button></div>`; }
 function telaQuadro(loja) {
@@ -1017,8 +1035,8 @@ function kcard(t, col) {
     <span class="kt">${esc(t.titulo)}</span>${equipe}<span class="km num"><span>${esc(quando(t))}</span>${ni ? `<span>${ni} itens</span>` : ""}${nm ? `<span>${nm} ${nm === 1 ? "mídia" : "mídias"}</span>` : ""}${t.rotina ? "" : "<span>avulsa</span>"}</span>${badge(s)}</button>`;
 }
 function telaNova(loja) {
-  const fs = funcionarios(loja); const mes = S.escopo === "mes"; const ag = Date.now(); const em = (h) => hm(new Date(ag + h * 3600e3).toISOString());
-  return voltar("quadro") + `<h1>Nova tarefa</h1><form class="form" data-action="criar">
+  const fs = funcionarios(loja); const mes = S.novaPre?.tipo ? S.novaPre.tipo === "mensal" : S.escopo === "mes"; const ag = Date.now(); const em = (h) => hm(new Date(ag + h * 3600e3).toISOString());
+  return voltar(S.novaPre?.de || "quadro") + `<h1>Nova tarefa</h1><form class="form" data-action="criar">
     <label class="f">O que precisa ser feito?<input type="text" name="titulo" maxlength="120" placeholder="Ex.: Montar ilha de panelas na entrada" value="${esc(S.novaPre?.titulo || "")}"></label>
     <fieldset style="border:0;padding:0;margin:0;display:grid;gap:8px"><legend style="font-weight:700;margin-bottom:6px">Que tipo de tarefa?</legend><div class="chips">
       <label class="chip"><input type="radio" name="tipo" value="diaria" ${mes ? "" : "checked"}> Diária (hoje)</label><label class="chip"><input type="radio" name="tipo" value="mensal" ${mes ? "checked" : ""}> Do mês</label></div></fieldset>
@@ -1072,12 +1090,12 @@ function telaMais(loja) {
     <button class="lt" style="grid-template-columns:36px minmax(0,1fr) auto" data-action="sairPortal"><span style="color:var(--action);width:28px;height:28px">${I.trocar}</span><span><span class="tt">Trocar de loja</span><span class="m">Voltar para a escolha do portal</span></span>${I.seta}</button></div>`;
 }
 function telaRotinas(loja) {
-  carregarHistorico(loja);
+  carregarHistorico(loja); const tsHist = S.hist[loja]?.estado === "ok" ? tarefasHist(loja) : null;
   const rs = Object.entries(S.rotinas).filter(([, r]) => r.lojas?.[loja]).sort((a, b) => ((a[1].tipo || "diaria").localeCompare(b[1].tipo || "diaria")) || (a[1].inicio || "").localeCompare(b[1].inicio || "") || ((a[1].dia || 0) - (b[1].dia || 0)));
   const fs = funcionarios(loja);
   return `<h1>Rotinas</h1><p class="soft">Criam as tarefas sozinhas: as diárias a cada dia, as do mês uma vez por mês e as de “a cada N dias” quando passa esse tempo desde a última vez (e voltam todo dia até serem feitas). Escolha quem faz cada uma por padrão (uma ou mais pessoas); vale a partir da próxima vez que a tarefa for criada.</p>
     <div class="pilha">${rs.map(([id, r]) => `<article class="cartao"><div class="linha entre"><h3>${esc(r.titulo)}</h3><span class="tag">${(r.tipo || "diaria") === "mensal" ? "Do mês · dia " + esc(r.dia || ultimoDia(mesAtual())) : r.tipo === "periodica" ? "A cada " + esc(r.cadaDias || 7) + " dias" : "Diária · " + esc(r.inicio) + "–" + esc(r.fim)}</span></div>
-      ${S.hist[loja]?.estado === "ok" ? (() => { const u = ultimaVez(loja, id); return `<p class="soft small">Última vez feita: ${u ? `${dataBR(u.data)} (${haDias(diasEntre(u.data, hoje()))})` : `sem registro em ${DIAS_HIST} dias`}</p>`; })() : ""}
+      ${tsHist ? (() => { const u = ultimaVez(loja, id, tsHist); return `<p class="soft small">Última vez feita: ${u ? `${dataBR(u.data)} (${haDias(diasEntre(u.data, hoje()))})` : `sem registro em ${diasHist()} dias`}</p>`; })() : ""}
       <div class="pilha" style="gap:6px"><span class="small" style="font-weight:700">Quem faz por padrão</span><div class="chips" role="group" aria-label="Quem faz ${esc(r.titulo)} por padrão">${fs.map(([fid, f]) => `<button class="chip" data-action="padraoAlt" data-rot="${esc(id)}" data-id="${esc(fid)}" aria-pressed="${padraoDe(loja, id).includes(fid)}">${esc(f.nome)}</button>`).join("")}</div>${padraoDe(loja, id).length ? "" : '<span class="soft small">Ninguém: a tarefa nasce em A distribuir.</span>'}</div>
       <details><summary style="cursor:pointer;font-weight:700;min-height:44px;display:flex;align-items:center">${Object.keys(r.itens || {}).length} itens para conferir</summary><ul class="resp">${Object.values(r.itens || {}).sort((a, b) => a.ordem - b.ordem).map((it) => `<li><span>•</span><span>${esc(it.texto)}${it.critico ? ' <span class="tag crit">Crítico</span>' : ""}</span></li>`).join("")}</ul></details></article>`).join("") || vazio("Nenhuma rotina nesta loja", "As rotinas são configuradas pela proprietária.", "", false)}</div>`;
 }
@@ -1156,7 +1174,7 @@ function folhaFuncionario(t) {
   const itens = Object.entries(t.itens || {}).sort((a, b) => (a[1].ordem || 0) - (b[1].ordem || 0));
   let acao = "";
   if (editavel) { const f = faltando(t); acao = `${f.length ? `<p class="falta-txt">${esc(resumoFalta(f))}</p>` : ""}<div class="bts"><button class="btn primary" data-action="enviar" ${S.enviando ? "disabled" : ""}>Enviar para aprovação</button></div>`; }
-  else if (podeAjudar) acao = `<p class="falta-txt" style="color:var(--ink-soft)">${esc(nomesLista(t.loja, equipeTentativa(x)))} já começou. Entre para marcar itens e mandar foto ou vídeo junto.</p><div class="bts"><button class="btn primary" data-action="ajudar">Ajudar nesta tarefa</button></div>`;
+  else if (podeAjudar) acao = `<p class="falta-txt" style="color:var(--ink-soft)">${esc(nomesLista(t.loja, equipeTentativa(x)))} ${equipeTentativa(x).length > 1 ? "já começaram" : "já começou"}. Entre para marcar itens e mandar foto ou vídeo junto.</p><div class="bts"><button class="btn primary" data-action="ajudar">Ajudar nesta tarefa</button></div>`;
   else if (podeComecar) acao = `<div class="bts"><button class="btn primary" data-action="comecar">${t.status === "correcao" ? "Corrigir agora" : eq.length ? "Começar" : "Pegar e começar"}</button></div>`;
   const outras = Object.entries(t.tentativas || {}).sort((a, b) => b[0] - a[0]).filter(([k]) => !(editavel && Number(k) === t.n));
   return `<div class="folha" role="dialog" aria-modal="true" aria-label="${esc(t.titulo)}">${cabFolha(t)}<div class="wrap estreito corpo">${infoTarefa(t)}
@@ -1177,7 +1195,7 @@ function itemEditavel(iid, it, n, x) {
 }
 function resumoTentativa(t, x, k) {
   const itens = Object.entries(t.itens || {}).sort((a, b) => (a[1].ordem || 0) - (b[1].ordem || 0)); const rev = x.revisao; const mids = midiasDe(x);
-  return `<div class="cartao"><div class="linha entre"><b>Envio ${esc(k)}</b><span class="soft small">${esc(nomesLista(t.loja, equipeTentativa(x), false))}${x.envio ? " · " + dataHora(x.envio) : x.encerrada ? " · passou para outra pessoa" : " · em andamento"}</span></div>
+  return `<div class="cartao"><div class="linha entre"><b>Envio ${esc(k)}</b><span class="soft small">${esc(nomesLista(t.loja, equipeTentativa(x), false))}${x.envio ? " · " + dataHora(x.envio) : x.encerrada ? (x.motivoEncerramento === "cancelada" ? " · tarefa cancelada" : " · passou para outra pessoa") : " · em andamento"}</span></div>
     ${mids.length ? `<div class="midias">${mids.map((id) => miniMidia(id, false)).join("")}</div>` : ""}
     ${itens.some(([iid]) => x.respostas?.[iid]) ? `<ul class="resp">${itens.map(([iid, it]) => { const r = x.respostas?.[iid]; return `<li>${r?.ok === true ? I.ok : r?.ok === false ? I.alerta : "<span>–</span>"}<span>${esc(it.texto)}${r?.ok === false ? `<br><span class="nc">Problema: ${esc(r.obs)}</span>` : ""}</span></li>`; }).join("")}</ul>` : ""}
     ${x.obs ? `<p><b>Comentário:</b> ${esc(x.obs)}</p>` : ""}
@@ -1186,7 +1204,7 @@ function resumoTentativa(t, x, k) {
 function folhaGerencia(t) {
   const fs = funcionarios(t.loja); const trava = ["enviada", "aprovada", "cancelada"].includes(t.status);
   const eq = resps(t); const padrao = t.rotina ? padraoDe(t.loja, t.rotina) : []; const mesmoPadrao = padrao.length === eq.length && eq.every((id) => padrao.includes(id));
-  const opcoes = [...fs, ...eq.filter((id) => !fs.some(([fid]) => fid === id)).map((id) => [id, { nome: nomeFunc(t.loja, id) + " (inativo)" }])];
+  const opcoes = [...fs, ...eq.filter((id) => !fs.some(([fid]) => fid === id)).map((id) => [id, { nome: nomeFunc(t.loja, id) + " (fora da equipe)" }])];
   let acao = t.status === "enviada" ? `<div class="bts"><button class="btn danger" data-action="reprovar" data-ref="${esc(refDe(t))}">Pedir correção</button><button class="btn primary" data-action="aprovar" data-ref="${esc(refDe(t))}">Aprovar</button></div>` : "";
   return `<div class="folha" role="dialog" aria-modal="true" aria-label="${esc(t.titulo)}">${cabFolha(t)}<div class="wrap estreito corpo">${infoTarefa(t)}
     <section class="cartao quem"><h3>Quem faz</h3>${trava ? `<p><b>${esc(nomesLista(t.loja, eq, false))}</b> <span class="soft small">(não dá para trocar depois de enviada)</span></p>` : `<p class="soft small">Toque em todas as pessoas que vão fazer. Pode ser mais de uma.</p><div class="chips" role="group" aria-label="Quem faz">${opcoes.map(([id, f]) => `<button class="chip" data-action="alternarResp" data-ref="${esc(refDe(t))}" data-id="${esc(id)}" aria-pressed="${eq.includes(id)}">${eq.includes(id) ? I.ok : ""}${esc(f.nome)}</button>`).join("")}${eq.length ? `<button class="chip" data-action="limparResp" data-ref="${esc(refDe(t))}">Ninguém (A distribuir)</button>` : ""}</div>
@@ -1219,6 +1237,12 @@ function renderModal() {
     el.hidden = false; return;
   }
   const t = acharTarefa(m.ref); if (!t) { S.modal = null; el.hidden = true; return; }
+  if (m.tipo === "tirarResp") {
+    const x = tentativaAtual(t); const eq = equipeTentativa(x); const quem = nomesLista(t.loja, eq);
+    el.innerHTML = `<div class="scrim" data-action="fecharModal"></div><div class="dlg" role="dialog" aria-modal="true" aria-labelledby="dlgT"><h2 id="dlgT">Encerrar o envio em andamento?</h2><p class="soft">${esc(t.titulo)}</p><p>${esc(quem)} ${eq.length > 1 ? "já começaram" : "já começou"} e marcou itens${midiasDe(x).length ? " ou mandou foto ou vídeo" : ""}. Quem fizer depois começa do zero; o que foi feito fica guardado no histórico da tarefa.</p>
+      <div class="linha" style="justify-content:flex-end"><button class="btn ghost" data-action="fecharModal">Voltar</button><button class="btn danger" data-action="confirmarResps">Encerrar e trocar</button></div></div>`;
+    el.hidden = false; return;
+  }
   if (m.tipo === "mover") {
     const de = nomesLista(t.loja, [m.de]), para = nomesLista(t.loja, [m.para]), juntos = nomesLista(t.loja, [...resps(t), m.para]);
     el.innerHTML = `<div class="scrim" data-action="fecharModal"></div><div class="dlg" role="dialog" aria-modal="true" aria-labelledby="dlgT"><h2 id="dlgT">${esc(para)} entra no lugar ou junto?</h2><p class="soft">${esc(t.titulo)}</p>
@@ -1255,12 +1279,15 @@ async function definirResps(t, lista, msg) {
   await atualizarTarefa(t, patch);
   aviso(msg || (lista.length ? `${lista.length > 1 ? "Em equipe" : "Agora com"}: ${nomesLista(t.loja, lista)}.` : "Tarefa voltou para A distribuir."));
 }
+// Trocar a equipe encerra o envio em andamento quando ninguém de quem começou continua: com trabalho feito, pergunta antes.
+function perdeEnvio(t, lista) { const x = tentativaAtual(t); return aberta(x) && !equipeTentativa(x).some((id) => lista.includes(id)) && (Object.values(x.respostas || {}).some((r) => r?.ok != null) || midiasDe(x).length > 0); }
+async function trocarResps(t, lista, msg) { if (t && perdeEnvio(t, lista)) { S.modal = { tipo: "tirarResp", ref: refDe(t), lista, msg }; renderModal(); return; } await definirResps(t, lista, msg); }
 async function soltarCartao(t, de, para) {
   if (!t || de === para) return; const eq = resps(t);
   if (["enviada", "aprovada", "cancelada"].includes(t.status)) return aviso("Essa tarefa já foi enviada; não dá para trocar quem faz.", "erro");
-  if (!para) return de ? definirResps(t, eq.filter((id) => id !== de), eq.length > 1 ? `${nomesLista(t.loja, [de])} saiu da tarefa. Continua: ${nomesLista(t.loja, eq.filter((id) => id !== de))}.` : null) : undefined;
+  if (!para) return de ? trocarResps(t, eq.filter((id) => id !== de), eq.length > 1 ? `${nomesLista(t.loja, [de])} saiu da tarefa. ${eq.length > 2 ? "Continuam" : "Continua"}: ${nomesLista(t.loja, eq.filter((id) => id !== de))}.` : null) : undefined;
   if (eq.includes(para)) return aviso(`${nomesLista(t.loja, [para])} já está nesta tarefa.`);
-  if (!de || !eq.includes(de)) return definirResps(t, [para]);
+  if (!de || !eq.includes(de)) return trocarResps(t, [para]);
   S.modal = { tipo: "mover", ref: refDe(t), de, para }; renderModal(); setTimeout(() => $("#modal [data-action='moverJuntos']")?.focus(), 30);
 }
 async function comecar(t) {
@@ -1301,7 +1328,7 @@ async function exportarCSV(lojas) {
   try { await S.dl.save({ filename: `ede-gestao-${hoje()}.csv`, data: new Blob([csv], { type: "text/csv" }) }); } catch { aviso("O arquivo não foi salvo.", "erro"); }
 }
 function sairPortal() { S.portal = null; S.quem = null; S.tela = null; S.aberta = null; S.menu = false; S.modal = null; S.filtro = null; local.set("ede.portal", null); render(); renderMenu(); window.scrollTo(0, 0); }
-function erroSalvar(e) { console.error(e); return e?.code === "invalid_argument" ? "Você não tem permissão para esta mudança." : "Não consegui salvar. Confira a internet e tente de novo."; }
+function erroSalvar(e) { console.error(e); if (e?.code === "outraAba") return "O Éde Gestão foi aberto em outra aba. Use a aba mais nova."; return e?.code === "invalid_argument" ? "Você não tem permissão para esta mudança." : "Não consegui salvar. Confira a internet e tente de novo."; }
 
 // Põe a tarefa de uma rotina no dia de hoje (a partir de um alerta do Início).
 async function porNoQuadroHoje(loja, rid) {
@@ -1318,6 +1345,8 @@ async function porNoQuadroHoje(loja, rid) {
 // Modo local: o mesmo site aberto direto no aparelho, guardando no IndexedDB do navegador
 // ===========================================================================
 async function criarLocal(cfg) {
+  let ativa = true;
+  if (navigator.locks) await new Promise((ok) => { navigator.locks.request("ede-gestao-aba", { steal: true }, () => { ok(); return new Promise(() => {}); }).catch(() => { ativa = false; S.erroGeral = "outraAba"; render(); }); });
   const pedido = (req) => new Promise((ok, er) => { req.onsuccess = () => ok(req.result); req.onerror = () => er(req.error); });
   const abrir = indexedDB.open("ede-gestao", 1);
   abrir.onupgradeneeded = () => { abrir.result.createObjectStore("docs"); abrir.result.createObjectStore("meta"); };
@@ -1334,6 +1363,7 @@ async function criarLocal(cfg) {
   const ouvintes = new Set(); const avisar = () => setTimeout(() => ouvintes.forEach((f) => f()), 0);
   const ler = async (p) => cache.has(p) ? copia(cache.get(p)) : ehMidia(p) ? copia(await pedido(guarda("docs").get(p))) : undefined;
   const gravar = async (p, d) => {
+    if (!ativa) throw { code: "outraAba", message: "aberto em outra aba" };
     if (ehMidia(p)) { if (p.split("/").length === 2) { meta.set(p, leve(d)); await pedido(guarda("meta", "readwrite").put(leve(d), p)); } } else cache.set(p, copia(d));
     await pedido(guarda("docs", "readwrite").put(copia(d), p)); avisar();
   };
@@ -1343,7 +1373,7 @@ async function criarLocal(cfg) {
     get: async () => foto(p, await ler(p)),
     set: async (d) => gravar(p, d),
     update: async (d) => { const atual = await ler(p); if (atual === undefined) throw { code: "invalid_argument", message: "documento não existe" }; await gravar(p, juntar(atual, d)); },
-    delete: async () => { cache.delete(p); meta.delete(p); await pedido(guarda("docs", "readwrite").delete(p)); await pedido(guarda("meta", "readwrite").delete(p)); avisar(); },
+    delete: async () => { if (!ativa) throw { code: "outraAba", message: "aberto em outra aba" }; cache.delete(p); meta.delete(p); await pedido(guarda("docs", "readwrite").delete(p)); await pedido(guarda("meta", "readwrite").delete(p)); avisar(); },
     acquire: async () => ({ acquired: true }),
     onSnapshot: (next) => { let vivo = true; const f = async () => { const d = await ler(p); if (vivo) next(foto(p, d)); }; ouvintes.add(f); f(); return () => { vivo = false; ouvintes.delete(f); }; },
     collection: (c) => colecao(p + "/" + c),
@@ -1364,10 +1394,16 @@ async function criarLocal(cfg) {
   const salvarArquivo = ({ filename, data }) => { const a = document.createElement("a"); a.href = URL.createObjectURL(data); a.download = filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000); };
   S.backup = {
     async exportar() {
-      const [ks, vs] = await Promise.all([pedido(guarda("docs").getAllKeys()), pedido(guarda("docs").getAll())]);
-      const docs = {}; ks.forEach((k, i) => { docs[k] = vs[i]; });
-      salvarArquivo({ filename: `ede-gestao-copia-${hoje()}.json`, data: new Blob([JSON.stringify({ app: "ede-gestao", versao: 1, salvoEm: new Date().toISOString(), docs })], { type: "application/json" }) });
-      aviso("Cópia salva. Guarde o arquivo em lugar seguro.");
+      try {
+        const ks = await pedido(guarda("docs").getAllKeys()); const partes = [`{"app":"ede-gestao","versao":1,"salvoEm":${JSON.stringify(new Date().toISOString())},"docs":{`];
+        for (let i = 0; i < ks.length; i += 100) {
+          const faixa = IDBKeyRange.bound(ks[i], ks[Math.min(i + 99, ks.length - 1)]); const st = guarda("docs");
+          const [kk, vs] = await Promise.all([pedido(st.getAllKeys(faixa)), pedido(st.getAll(faixa))]);
+          partes.push(new Blob(kk.map((k, j) => (i + j ? "," : "") + JSON.stringify(k) + ":" + JSON.stringify(vs[j]))));
+        }
+        partes.push("}}"); salvarArquivo({ filename: `ede-gestao-copia-${hoje()}.json`, data: new Blob(partes, { type: "application/json" }) });
+        aviso("Cópia salva. Guarde o arquivo em lugar seguro.");
+      } catch (e) { console.error(e); aviso("Não consegui gerar a cópia: os dados ficaram grandes demais para este aparelho.", "erro"); }
     },
     async importar(file) {
       let dados; try { dados = JSON.parse(await file.text()); } catch { return aviso("Esse arquivo não é uma cópia do Éde Gestão.", "erro"); }
@@ -1375,7 +1411,8 @@ async function criarLocal(cfg) {
       if (!confirm(`Restaurar a cópia de ${dataHora(dados.salvoEm) || "data desconhecida"}? Os dados atuais deste aparelho serão trocados pelos da cópia.`)) return;
       const t = idb.transaction(["docs", "meta"], "readwrite"); t.objectStore("docs").clear(); t.objectStore("meta").clear();
       for (const [k, v] of Object.entries(dados.docs)) { t.objectStore("docs").put(v, k); if (ehMidia(k) && k.split("/").length === 2) t.objectStore("meta").put(leve(v), k); }
-      await new Promise((ok, er) => { t.oncomplete = ok; t.onerror = () => er(t.error); });
+      try { await new Promise((ok, er) => { t.oncomplete = ok; t.onerror = () => er(t.error); t.onabort = () => er(t.error || new Error("abortada")); }); }
+      catch (e) { console.error(e); return aviso("Não deu para restaurar: falta espaço no aparelho ou a cópia é grande demais. Os dados de antes continuam.", "erro"); }
       location.reload();
     },
   };
@@ -1442,12 +1479,12 @@ document.addEventListener("click", async (ev) => {
     else if (act === "menu") { S.menu = !S.menu; renderMenu(); }
     else if (act === "fecharMenu") { if (ev.target === a || a.tagName === "BUTTON") { S.menu = false; renderMenu(); } }
     else if (act === "ajuda") { S.menu = false; renderMenu(); S.modal = { tipo: "ajuda" }; renderModal(); }
-    else if (act === "tela") { S.tela = a.dataset.tela; S.filtro = null; S.aprIdx = 0; if (S.tela === "nova" && !a.dataset.pre) S.novaPre = null; render(); window.scrollTo(0, 0); }
+    else if (act === "tela") { S.tela = a.dataset.tela; S.filtro = a.dataset.f || null; if (a.dataset.e) S.escopo = a.dataset.e; S.aprIdx = 0; if (S.tela === "nova" && !a.dataset.pre) S.novaPre = null; render(); window.scrollTo(0, 0); }
     else if (act === "periodoEq") { S.periodoEq = Number(a.dataset.p) === 30 ? 30 : 7; render(); }
     else if (act === "todosAlertas") { S.todosAlertas = !S.todosAlertas; render(); }
     else if (act === "atualizarHist") { await carregarHistorico(S.portal, true); aviso("Análise atualizada."); }
     else if (act === "porHoje") { await porNoQuadroHoje(S.portal, a.dataset.rot); }
-    else if (act === "novaCom") { S.novaPre = { titulo: a.dataset.titulo, instr: a.dataset.instr }; S.tela = "nova"; render(); window.scrollTo(0, 0); }
+    else if (act === "novaCom") { S.novaPre = { titulo: a.dataset.titulo, instr: a.dataset.instr, tipo: "diaria", de: "inicio" }; S.tela = "nova"; render(); window.scrollTo(0, 0); }
     else if (act === "verPessoa") { S.tela = "quadro"; S.filtro = null; render(); window.scrollTo(0, 0); const b = $(".board"); const c = b?.querySelector(`.col[data-col="${CSS.escape(a.dataset.id)}"]`); if (c) b.scrollLeft = c.offsetLeft - b.offsetLeft - 4; }
     else if (act === "exportarLocal") { await S.backup?.exportar(); }
     else if (act === "escopo") { S.escopo = a.dataset.e; render(); }
@@ -1457,14 +1494,15 @@ document.addEventListener("click", async (ev) => {
     else if (act === "abrir") { S.aberta = a.dataset.ref; S.falta = null; renderSheet(); }
     else if (act === "fechar") { if (a.classList.contains("scrim") && ev.target !== a) return; S.aberta = null; S.falta = null; renderSheet(); }
     else if (act === "comecar") { a.disabled = true; await comecar(acharTarefa(S.aberta)); }
-    else if (act === "op") { const t = acharTarefa(S.aberta); const r = tentativaAtual(t)?.respostas?.[a.dataset.item]; const v = a.dataset.v === "feito" ? (r?.ok === true ? { ok: null, obs: "" } : { ok: true, obs: "" }) : (r?.ok === false ? { ok: null, obs: "" } : { ok: false, obs: r?.obs || "" }); if (S.falta === a.dataset.item) S.falta = null; await atualizarTarefa(t, { tentativas: { [t.n]: { respostas: { [a.dataset.item]: v } } } }); }
+    else if (act === "op") { const t = acharTarefa(S.aberta); if (fechouAntes(t)) return; const r = tentativaAtual(t)?.respostas?.[a.dataset.item]; const v = a.dataset.v === "feito" ? (r?.ok === true ? { ok: null, obs: "" } : { ok: true, obs: "" }) : (r?.ok === false ? { ok: null, obs: "" } : { ok: false, obs: r?.obs || "" }); if (S.falta === a.dataset.item) S.falta = null; await atualizarTarefa(t, { tentativas: { [t.n]: { respostas: { [a.dataset.item]: v } } } }); }
     else if (act === "enviar") { a.disabled = true; await enviar(acharTarefa(S.aberta)); a.disabled = false; }
-    else if (act === "alternarResp") { const t = acharTarefa(a.dataset.ref); if (!t) return; const eq = resps(t); const id = a.dataset.id; await definirResps(t, eq.includes(id) ? eq.filter((x) => x !== id) : [...eq, id]); }
-    else if (act === "limparResp") { await definirResps(acharTarefa(a.dataset.ref), []); }
-    else if (act === "moverJuntos" || act === "moverTrocar") { const m = S.modal; S.modal = null; renderModal(); const t = acharTarefa(m?.ref); if (!t) return; const eq = resps(t); await definirResps(t, act === "moverJuntos" ? [...eq, m.para] : eq.map((id) => (id === m.de ? m.para : id))); }
+    else if (act === "alternarResp") { const t = acharTarefa(a.dataset.ref); if (!t) return; const eq = resps(t); const id = a.dataset.id; await trocarResps(t, eq.includes(id) ? eq.filter((x) => x !== id) : [...eq, id]); }
+    else if (act === "limparResp") { await trocarResps(acharTarefa(a.dataset.ref), []); }
+    else if (act === "confirmarResps") { const m = S.modal; S.modal = null; renderModal(); await definirResps(acharTarefa(m?.ref), m?.lista || [], m?.msg); }
+    else if (act === "moverJuntos" || act === "moverTrocar") { const m = S.modal; S.modal = null; renderModal(); const t = acharTarefa(m?.ref); if (!t) return; const eq = resps(t); await trocarResps(t, act === "moverJuntos" ? [...eq, m.para] : eq.map((id) => (id === m.de ? m.para : id))); }
     else if (act === "ajudar") { a.disabled = true; await ajudar(acharTarefa(S.aberta)); }
-    else if (act === "padraoAlt") { const atual = padraoDe(S.portal, a.dataset.rot); const id = a.dataset.id; const novo = atual.includes(id) ? atual.filter((x) => x !== id) : [...atual, id]; await S.db.doc(`portais/${S.portal}`).update({ padrao: { [a.dataset.rot]: novo } }); aviso(novo.length ? `Por padrão: ${nomesLista(S.portal, novo)}.` : "Sem responsável padrão: a tarefa nasce em A distribuir."); }
-    else if (act === "tornarPadrao") { const t = acharTarefa(a.dataset.ref); const eq = resps(t); if (!t?.rotina || !eq.length) return; await S.db.doc(`portais/${t.loja}`).update({ padrao: { [t.rotina]: eq } }); aviso(`Pronto: esta rotina vai para ${nomesLista(t.loja, eq)} daqui em diante.`); }
+    else if (act === "padraoAlt") { const atual = padraoDe(S.portal, a.dataset.rot); const id = a.dataset.id; const novo = atual.includes(id) ? atual.filter((x) => x !== id) : [...atual, id]; await S.db.doc(`portais/${S.portal}`).update({ padrao: { [a.dataset.rot]: novo.length === 1 ? novo[0] : novo.length ? novo : null } }); aviso(novo.length ? `Por padrão: ${nomesLista(S.portal, novo)}.` : "Sem responsável padrão: a tarefa nasce em A distribuir."); }
+    else if (act === "tornarPadrao") { const t = acharTarefa(a.dataset.ref); const eq = resps(t); if (!t?.rotina || !eq.length) return; await S.db.doc(`portais/${t.loja}`).update({ padrao: { [t.rotina]: eq.length === 1 ? eq[0] : eq } }); aviso(`Pronto: esta rotina vai para ${nomesLista(t.loja, eq)} daqui em diante.`); }
     else if (act === "aprovar") { a.disabled = true; await aprovar(acharTarefa(a.dataset.ref)); }
     else if (act === "reprovar") { S.modal = { tipo: "reprovar", ref: a.dataset.ref }; renderModal(); setTimeout(() => $("#motivo")?.focus(), 30); }
     else if (act === "cancelar") { S.modal = { tipo: "cancelar", ref: a.dataset.ref }; renderModal(); setTimeout(() => $("#motivo")?.focus(), 30); }
@@ -1482,8 +1520,8 @@ document.addEventListener("change", async (ev) => {
   const a = ev.target.closest("[data-action]"); if (!a) { const f = ev.target.closest("form[data-action='criar']"); if (f && ev.target.name === "tipo") ajustarNova(f); return; }
   const act = a.dataset.action;
   try {
-    if (act === "obs") { const t = acharTarefa(S.aberta); await atualizarTarefa(t, { tentativas: { [t.n]: { obs: a.value.slice(0, 1000) } } }); }
-    else if (act === "obsitem") { const t = acharTarefa(S.aberta); await atualizarTarefa(t, { tentativas: { [t.n]: { respostas: { [a.dataset.item]: { ok: false, obs: a.value.slice(0, 500) } } } } }); }
+    if (act === "obs") { const t = acharTarefa(S.aberta); if (fechouAntes(t)) return; await atualizarTarefa(t, { tentativas: { [t.n]: { obs: a.value.slice(0, 1000) } } }); }
+    else if (act === "obsitem") { const t = acharTarefa(S.aberta); if (fechouAntes(t)) return; await atualizarTarefa(t, { tentativas: { [t.n]: { respostas: { [a.dataset.item]: { ok: false, obs: a.value.slice(0, 500) } } } } }); }
     else if (act === "importarLocal") { const file = a.files?.[0]; a.value = ""; if (file) await S.backup?.importar(file); }
     else if (act === "foto" || act === "video") {
       const file = a.files?.[0]; a.value = ""; if (!file) return; const t = acharTarefa(S.aberta); const x = tentativaAtual(t);
@@ -1513,7 +1551,7 @@ document.addEventListener("submit", async (ev) => {
       const motivo = String(fd.get("motivo") || "").trim(); const t = acharTarefa(S.modal.ref);
       if (!temTexto(motivo)) { $("#erroDlg").textContent = act === "confirmarReprovar" ? "Escreva o que precisa ser corrigido. O funcionário vai ler isso." : "Escreva o motivo do cancelamento."; return; }
       if (act === "confirmarReprovar") await atualizarTarefa(t, { status: "correcao", tentativas: { [t.n]: { revisao: { decisao: "reprovada", em: new Date().toISOString(), motivo: motivo.slice(0, 1000) } } } });
-      else await atualizarTarefa(t, { status: "cancelada", cancelamento: { em: new Date().toISOString(), motivo: motivo.slice(0, 1000) } });
+      else await atualizarTarefa(t, { status: "cancelada", cancelamento: { em: new Date().toISOString(), motivo: motivo.slice(0, 1000) }, ...(aberta(tentativaAtual(t)) ? { tentativas: { [t.n]: { encerrada: new Date().toISOString(), motivoEncerramento: "cancelada" } } } : {}) });
       S.modal = null; renderModal(); S.aberta = null; renderSheet(); aviso(act === "confirmarReprovar" ? "Correção pedida. O funcionário vai ver o motivo." : "Tarefa cancelada.");
     } else if (act === "criar") {
       const titulo = String(fd.get("titulo") || "").trim(); const tipo = fd.get("tipo") || "diaria"; const agora = Date.now();

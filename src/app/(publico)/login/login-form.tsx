@@ -44,8 +44,8 @@ export function LoginForm({ next }: { next: string }) {
         required
         error={clientErrors.password ?? state.fieldErrors?.password}
       />
-      <Button type="submit" block disabled={pending}>
-        {pending ? "Entrando…" : "Entrar"}
+      <Button type="submit" block loading={pending} loadingLabel="Entrando…">
+        Entrar
       </Button>
       <Link href="/recuperar-senha" className="link self-center">
         Esqueci minha senha

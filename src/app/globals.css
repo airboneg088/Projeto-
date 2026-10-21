@@ -1,158 +1,24 @@
 /*
- * Tokens provisórios — a identidade visual é definida na Fase 2
+ * Estilos globais do Éde Gestão. Valores de cor, raio, curva e tipografia vêm de
+ * src/app/tokens.css, GERADO de src/lib/design/tokens.ts (`pnpm tokens`). Regras em DESIGN.md.
  *
- * Neutros, sem marca. Contraste conferido para WCAG AA (texto >= 4,5:1; bordas de campo e anel
- * de foco >= 3:1) nos temas claro e escuro. O tema escuro é a classe "dark" no <html>,
- * aplicada pelo next-themes antes da primeira pintura (sem flash).
+ * Movimento: só transform e opacity (exceção documentada: o traço do check do checklist);
+ * nunca "transition: all"; nunca ease-in; hover só com mouse; prefers-reduced-motion tira o
+ * deslocamento e mantém opacidade e cor.
  */
 @import "tailwindcss";
+@import "./tokens.css";
 
+/* Tema escuro pela classe do next-themes. Prefira tokens (bg-surface…) a `dark:`. */
 @custom-variant dark (&:where(.dark, .dark *));
 
-:root {
-  color-scheme: light;
-
-  /* Superfícies: degraus de tom em vez de linhas grossas */
-  --surface-0: #f4f4f2; /* fundo da página */
-  --surface-1: #ffffff; /* cartões, cabeçalho, campos */
-  --surface-2: #e8e8e5; /* áreas rebaixadas, hover */
-
-  --text: #1b1b19;
-  --text-muted: #55554f;
-  --border: #dcdcd8; /* divisórias (decorativas) */
-  --border-strong: #7d7d76; /* contorno de campos (>= 3:1) */
-  --focus: #2457c5;
-
-  /* Destaque provisório */
-  --accent: #24569b;
-  --accent-hover: #1c4580;
-  --accent-fg: #ffffff;
-  --accent-text: #1f4f8f; /* links */
-
-  /* Mensagens */
-  --danger-bg: #fdecea;
-  --danger-fg: #a32012;
-  --success-bg: #e7f4ec;
-  --success-fg: #1c6337;
-  --info-bg: #e8f0fa;
-  --info-fg: #1f4f8f;
-
-  /* Status da tarefa (fundo/texto). Sempre com ícone + texto, nunca só cor. */
-  --status-pendente-bg: #eceff3;
-  --status-pendente-fg: #3a4250;
-  --status-em-andamento-bg: #e3eefb;
-  --status-em-andamento-fg: #1d4e8a;
-  --status-aguardando-aprovacao-bg: #fcf1d6;
-  --status-aguardando-aprovacao-fg: #734600;
-  --status-aprovada-bg: #e2f3e8;
-  --status-aprovada-fg: #1b6436;
-  --status-correcao-solicitada-bg: #fde7e2;
-  --status-correcao-solicitada-fg: #9e2c17;
-  --status-atrasada-bg: #fbe3ec;
-  --status-atrasada-fg: #97193f;
-  --status-cancelada-bg: #ebebea;
-  --status-cancelada-fg: #4d4d4a;
-
-  /* Motion (do prompt; reutilizar sempre) */
-  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
-  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
-  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
-  --duration-press: 160ms;
-  --duration-popover: 200ms;
-  --duration-dropdown: 200ms;
-  --duration-modal: 300ms;
-}
-
-.dark {
-  color-scheme: dark;
-
-  --surface-0: #131312;
-  --surface-1: #1c1c1a;
-  --surface-2: #282825;
-
-  --text: #ededea;
-  --text-muted: #acaca5;
-  --border: #33332f;
-  --border-strong: #77776f;
-  --focus: #7fb0ff;
-
-  --accent: #8db8f2;
-  --accent-hover: #a9cbf7;
-  --accent-fg: #0d1b2e;
-  --accent-text: #9cc3f5;
-
-  --danger-bg: #3d1612;
-  --danger-fg: #f6aa9c;
-  --success-bg: #11301c;
-  --success-fg: #93d8ab;
-  --info-bg: #132a45;
-  --info-fg: #9cc6f5;
-
-  --status-pendente-bg: #252a32;
-  --status-pendente-fg: #c7cedb;
-  --status-em-andamento-bg: #13294a;
-  --status-em-andamento-fg: #9fc7f6;
-  --status-aguardando-aprovacao-bg: #382909;
-  --status-aguardando-aprovacao-fg: #f1c66f;
-  --status-aprovada-bg: #10301c;
-  --status-aprovada-fg: #92d8aa;
-  --status-correcao-solicitada-bg: #3c1610;
-  --status-correcao-solicitada-fg: #f5a896;
-  --status-atrasada-bg: #3a1022;
-  --status-atrasada-fg: #f49dbc;
-  --status-cancelada-bg: #2a2a29;
-  --status-cancelada-fg: #c0c0bc;
-}
-
-/* Utilitários do Tailwind ligados aos tokens (mudam com o tema). */
-@theme inline {
-  --color-surface-0: var(--surface-0);
-  --color-surface-1: var(--surface-1);
-  --color-surface-2: var(--surface-2);
-  --color-text: var(--text);
-  --color-text-muted: var(--text-muted);
-  --color-border: var(--border);
-  --color-border-strong: var(--border-strong);
-  --color-focus: var(--focus);
-  --color-accent: var(--accent);
-  --color-accent-hover: var(--accent-hover);
-  --color-accent-fg: var(--accent-fg);
-  --color-accent-text: var(--accent-text);
-  --color-danger-bg: var(--danger-bg);
-  --color-danger-fg: var(--danger-fg);
-  --color-success-bg: var(--success-bg);
-  --color-success-fg: var(--success-fg);
-  --color-info-bg: var(--info-bg);
-  --color-info-fg: var(--info-fg);
-
-  --color-status-pendente-bg: var(--status-pendente-bg);
-  --color-status-pendente-fg: var(--status-pendente-fg);
-  --color-status-em-andamento-bg: var(--status-em-andamento-bg);
-  --color-status-em-andamento-fg: var(--status-em-andamento-fg);
-  --color-status-aguardando-aprovacao-bg: var(--status-aguardando-aprovacao-bg);
-  --color-status-aguardando-aprovacao-fg: var(--status-aguardando-aprovacao-fg);
-  --color-status-aprovada-bg: var(--status-aprovada-bg);
-  --color-status-aprovada-fg: var(--status-aprovada-fg);
-  --color-status-correcao-solicitada-bg: var(--status-correcao-solicitada-bg);
-  --color-status-correcao-solicitada-fg: var(--status-correcao-solicitada-fg);
-  --color-status-atrasada-bg: var(--status-atrasada-bg);
-  --color-status-atrasada-fg: var(--status-atrasada-fg);
-  --color-status-cancelada-bg: var(--status-cancelada-bg);
-  --color-status-cancelada-fg: var(--status-cancelada-fg);
-}
-
-@theme {
-  --font-sans:
-    system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
-
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
-
-  /* Mesmos valores do :root; aqui para os utilitários ease-out/ease-in-out/ease-drawer. */
-  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
-  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
-  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+/* Hover só onde existe mouse de verdade (no toque, :hover "gruda" depois do toque). */
+@custom-variant hover {
+  @media (hover: hover) and (pointer: fine) {
+    &:hover {
+      @slot;
+    }
+  }
 }
 
 @layer base {
@@ -161,12 +27,24 @@
   }
 
   body {
-    background: var(--surface-0);
+    background: var(--bg);
     color: var(--text);
-    font-family: var(--font-sans);
+    font-family: var(--font-figtree), Arial, sans-serif;
     font-size: 1rem; /* texto corrido >= 16px */
     line-height: 1.5;
     -webkit-tap-highlight-color: transparent;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
   }
 
   :focus-visible {
@@ -175,157 +53,214 @@
   }
 
   ::selection {
-    background: var(--info-bg);
+    background: var(--selection);
     color: var(--text);
+  }
+
+  ::placeholder {
+    color: var(--text-muted);
+    opacity: 1;
   }
 }
 
 @layer components {
-  /* Botões: feedback de toque com escala; hover só com mouse; nunca "transition: all". */
-  .btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    min-height: 48px;
-    padding: 0 1.25rem;
-    border: 1px solid transparent;
-    border-radius: var(--radius-md);
-    font-size: 1rem;
-    font-weight: 600;
-    line-height: 1.25;
-    text-align: center;
-    cursor: pointer;
-    user-select: none;
+  /*
+   * Tudo que se toca: escala 0.97 ao pressionar, 160ms ease-out. A volta também é transição
+   * (interrompível). Superfícies largas (cartão inteiro) usam .pressable-soft (0.98).
+   */
+  .pressable,
+  .pressable-soft {
+    transition: transform var(--duration-press) var(--ease-out);
     touch-action: manipulation;
-    transition:
-      transform var(--duration-press) var(--ease-out),
-      background-color var(--duration-press) var(--ease-out),
-      border-color var(--duration-press) var(--ease-out);
+    -webkit-user-select: none;
+    user-select: none;
   }
 
-  .btn:active:not(:disabled):not([aria-disabled="true"]) {
+  .pressable:active:not(:disabled):not([aria-disabled="true"]) {
     transform: scale(0.97);
   }
 
-  .btn:disabled,
-  .btn[aria-disabled="true"] {
-    cursor: not-allowed;
-    opacity: 0.6;
+  .pressable-soft:active:not(:disabled):not([aria-disabled="true"]) {
+    transform: scale(0.98);
   }
 
-  .btn-primary {
-    background: var(--accent);
-    color: var(--accent-fg);
-  }
-
-  .btn-secondary {
-    background: var(--surface-1);
-    border-color: var(--border-strong);
-    color: var(--text);
-  }
-
-  .btn-ghost {
-    background: transparent;
-    color: var(--text);
-  }
-
-  .btn-sm {
-    min-height: 44px;
-    padding: 0 0.875rem;
-  }
-
-  .btn-block {
-    width: 100%;
+  /* Link de texto com área de toque de 44px. */
+  .link {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--touch-min);
+    color: var(--accent-text);
+    font-weight: 600;
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 4px;
   }
 
   @media (hover: hover) and (pointer: fine) {
-    .btn-primary:hover:not(:disabled) {
-      background: var(--accent-hover);
-    }
-
-    .btn-secondary:hover:not(:disabled),
-    .btn-ghost:hover:not(:disabled) {
-      background: var(--surface-2);
-    }
-
     .link:hover {
       text-decoration-thickness: 2px;
     }
   }
 
-  /* Campos */
-  .field-label {
-    display: block;
-    font-size: 1rem;
-    font-weight: 600;
+  /* Indicador de carregamento dentro de botão (nunca de página inteira). */
+  .spinner {
+    animation: spin 700ms linear infinite;
   }
 
-  .field-input {
-    display: block;
-    width: 100%;
-    min-height: 48px;
-    padding: 0 0.875rem;
-    border: 1px solid var(--border-strong);
-    border-radius: var(--radius-md);
-    background: var(--surface-1);
-    color: var(--text);
-    font-size: 1rem; /* 16px evita o zoom automático do iOS */
+  /* Esqueleto: pulso de opacidade, sem brilho correndo. */
+  .skeleton {
+    background: var(--surface-muted);
+    animation: skeleton-pulse 1600ms var(--ease-in-out) infinite;
   }
 
-  .field-input[aria-invalid="true"] {
-    border-color: var(--danger-fg);
+  /* Item do checklist: a caixa encolhe ao pressionar e o check é desenhado (<= 200ms). */
+  .check-box {
+    transition: transform var(--duration-press) var(--ease-out);
   }
 
-  .field-hint {
-    color: var(--text-muted);
+  .check-row:active:not(:disabled) .check-box {
+    transform: scale(0.9);
   }
 
-  .field-error {
-    color: var(--danger-fg);
+  .check-path {
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+    transition: stroke-dashoffset var(--duration-check) var(--ease-out);
   }
 
-  /* Links com área de toque de 44px */
-  .link {
-    display: inline-flex;
-    align-items: center;
-    min-height: 44px;
-    color: var(--accent-text);
-    text-decoration: underline;
-    text-underline-offset: 3px;
+  [data-state="done"] .check-path {
+    stroke-dashoffset: 0;
   }
 
-  /* Avisos em bloco */
-  .notice {
-    border-radius: var(--radius-md);
-    padding: 0.75rem 1rem;
+  /* Botão Enviar → Enviada: troca de rótulo mascarada por blur de 2px. */
+  .morph-label {
+    transition:
+      opacity var(--duration-morph) var(--ease-out),
+      filter var(--duration-morph) var(--ease-out),
+      transform var(--duration-morph) var(--ease-out);
   }
 
-  .notice-error {
-    background: var(--danger-bg);
-    color: var(--danger-fg);
+  .morph-label[data-active="false"] {
+    opacity: 0;
+    filter: blur(2px);
+    transform: scale(0.96);
   }
 
-  .notice-success {
-    background: var(--success-bg);
-    color: var(--success-fg);
+  /* Barra de progresso do envio: só transform (scaleX). */
+  .progress-fill {
+    transform-origin: left center;
+    transition: transform var(--duration-dropdown) var(--ease-out);
   }
 
-  .notice-info {
-    background: var(--info-bg);
-    color: var(--info-fg);
+  /* Dialog: fundo e caixa entram com opacidade e escala 0.96 → 1, centralizados. */
+  .dialog-backdrop {
+    background: var(--scrim);
+    transition: opacity var(--duration-modal) var(--ease-out);
+  }
+
+  .dialog-backdrop[data-starting-style],
+  .dialog-backdrop[data-ending-style] {
+    opacity: 0;
+  }
+
+  .dialog-popup {
+    transform: translate(-50%, -50%);
+    transition:
+      opacity var(--duration-modal) var(--ease-out),
+      transform var(--duration-modal) var(--ease-out);
+  }
+
+  .dialog-popup[data-starting-style],
+  .dialog-popup[data-ending-style] {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.96);
+  }
+
+  /* Saída mais rápida que a entrada. */
+  .dialog-popup[data-ending-style],
+  .dialog-backdrop[data-ending-style] {
+    transition-duration: calc(var(--duration-modal) * 0.6);
   }
 }
 
-/* Movimento reduzido: mantém cor/opacidade, remove deslocamento e escala. */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes skeleton-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+@keyframes fade-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+/* Movimento reduzido: mantém opacidade e cor, tira escala, rotação e deslocamento. */
 @media (prefers-reduced-motion: reduce) {
-  .btn {
-    transition:
-      background-color var(--duration-press) var(--ease-out),
-      border-color var(--duration-press) var(--ease-out);
+  .pressable,
+  .pressable-soft,
+  .check-box {
+    transition: none;
   }
 
-  .btn:active:not(:disabled):not([aria-disabled="true"]) {
+  .pressable:active:not(:disabled):not([aria-disabled="true"]),
+  .pressable-soft:active:not(:disabled):not([aria-disabled="true"]),
+  .check-row:active:not(:disabled) .check-box {
     transform: none;
+  }
+
+  /* O check aparece por opacidade, sem o traço correndo. */
+  .check-path {
+    stroke-dashoffset: 0;
+    opacity: 0;
+    transition: opacity var(--duration-check) linear;
+  }
+
+  [data-state="done"] .check-path {
+    opacity: 1;
+  }
+
+  .morph-label {
+    transition: opacity var(--duration-morph) linear;
+  }
+
+  .morph-label[data-active="false"] {
+    filter: none;
+    transform: none;
+  }
+
+  .spinner {
+    animation: fade-pulse 1200ms linear infinite;
+  }
+
+  .skeleton {
+    animation: none;
+  }
+
+  .progress-fill {
+    transition: none;
+  }
+
+  .dialog-popup {
+    transition: opacity var(--duration-modal) linear;
+  }
+
+  .dialog-popup[data-starting-style],
+  .dialog-popup[data-ending-style] {
+    transform: translate(-50%, -50%);
   }
 }

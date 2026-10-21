@@ -13,6 +13,7 @@ Decisões que não estavam no prompt. Reversíveis: decididas e registradas aqui
 | D60–D71 | 21/10/2026 | Decidido (reversível) — correções da 3ª rodada de revisão da Fase 1 (app: login, sessão, Auth, cabeçalhos, segredos) |
 | D72–D91 | 21/10/2026 | Decidido (reversível) — correções da revisão final da Fase 1 (offline, indicadores, snapshot, auditoria, storage, LGPD, Auth); riscos novos no fim deste arquivo |
 | D92–D103 | 21/10/2026 | Decidido (reversível) — correções da 4ª rodada de revisão da Fase 1 (leitura do storage, reenvio offline, indicadores, corridas, linhagem, login de admin, check:secrets); riscos novos no fim deste arquivo |
+| D110–D119 | 21/10/2026 | Decidido (reversível) — Fase 2: design system (marca, tokens, contraste, componentes, catálogo de protótipo) |
 
 ---
 
@@ -472,6 +473,53 @@ Tarefa criada por usuário logado precisa de prazo no futuro (`deadline_locked`)
 **Contexto:** o regex das regras 3 e 4 não reconhecia `import { x as $y }`, comentário dentro das chaves nem `` import(`...`) ``: uma página podia importar o `admin.ts` sem o script acusar (R4-APP-01).
 **Decisão:** `scripts/check-secrets.mjs` lista as importações pela árvore sintática do TypeScript (devDependency já existente): `import`/`export ... from`, `import()` e `require()` com texto fixo (aspas ou template sem substituição), `import x = require(...)`; `import type`/`export type` ficam de fora. `import()`/`require()` com argumento que não é texto fixo em `src/` é erro. Autoteste com as três formas do revisor e as demais.
 **Por quê:** o parser entende toda forma de importar; não há o que enumerar.
+
+## Fase 2 — Design system
+
+Base: manual da marca da Éde Utilidades ([link](https://claude.ai/artifact/YGoYHxstwQUUx9PJYAH2KR)), `PRODUCT.md` e o prompt (`<design>`, `<motion>`). Regras completas em `DESIGN.md`.
+
+### D110 · Logos em `public/brand/` fora do proxy, nome a nome; fontes pelo próprio app
+**Contexto:** os logos do manual precisam ser servidos como arquivo; as fontes não podem vir do Google Fonts (bloqueado aqui e fora da CSP `font-src 'self'`).
+**Decisão:** os 10 SVGs do manual ficam em `public/brand/` com os nomes originais e entram na exclusão do `matcher` do proxy **um a um** (`brand/ede-(horizontal-(laranja|branco|cacau)|principal-(laranja|branco)|icone-(app|circulo)|simbolo-(laranja|branco|cacau))\.svg$`), ancorados como pede a D89. Bitter 800/900 e Figtree 400–800 vão para `src/app/fonts/` e entram por `next/font/local` (`display: swap`, fallback do manual Rockwell/Georgia e Arial, métrica ajustada); saem em `/_next/static/media/`, que já está fora do proxy. O ícone do app (`src/app/icon.svg`) é o `ede-icone-app.svg`. O E2E confere que os 10 logos e as 7 fontes são servidos e que `/brand/nao-existe.svg`, `/brand/` e variações ainda recebem CSP.
+**Por quê:** só arquivo que existe pula o proxy (D69/D89); fonte da mesma origem não exige mudar a CSP.
+
+### D111 · A identidade é o manual da marca; sem rodada de "2–3 direções"
+**Contexto:** o plano da Fase 2 previa propor direções de tokens se não houvesse identidade oficial.
+**Decisão:** a cliente entregou o manual da marca (logo, cores, fontes, espaços, raios, ícones, voz); ele é a identidade. A Fase 2 traduz o manual para o app (modo Operate) em vez de propor alternativas. `amarelo-oferta` (cor de preço e promoção) não é usado no app.
+**Por quê:** o prompt manda usar a identidade da Éde quando ela existe; propor outra seria retrabalho.
+
+### D112 · `tokens.ts` é a fonte única; CSS e tabelas do DESIGN.md são gerados e testados
+**Decisão:** valores de cor (dois temas), status, tipografia, raios, espaços, sombras e movimento ficam em `src/lib/design/tokens.ts`. `pnpm tokens` gera `src/app/tokens.css` (variáveis + `@theme` do Tailwind + utilitários `type-*`) e as tabelas do fim do `DESIGN.md`. O `pnpm test` falha se os arquivos gerados divergirem (`tokens-sync.test.ts`) ou se algum par declarado em `CONTRAST_PAIRS` não passar AA nos dois temas (`contrast.test.ts`: 4,5:1 texto; 3:1 ícone, contorno de controle, foco e marca). O vocabulário do Tailwind foi restringido: sem a paleta padrão, sem sombras de repouso, sem `ease-in`, sem raios fora do manual e sem `text-xs`; a variante `hover:` só vale com `(hover: hover) and (pointer: fine)`.
+**Por quê:** um valor só, em um lugar, conferido por teste; o que não pode ser usado nem existe como utilitário.
+
+### D113 · Cores derivadas do manual para o app
+**Decisão:** página `creme`, cartão `branco`, bloco que se separa `areia`, degrau de pressionado `#EADAC6`; texto `cacau`/`cacau-suave`; ação principal `laranja-brasa` com texto branco (5,00:1); **texto laranja pequeno** em `#A83C07` (a brasa um pouco mais escura), porque a brasa pura dá 4,07:1 sobre areia e o manual já proíbe esse uso; anel de foco brasa (>= 3:1 em todas as superfícies; 3,65:1 no degrau mais escuro). Tema escuro (opcional, `next-themes`) derivado do cacau (`#170E09`, `#221610`, `#2E2018`, `#3B2A20`), texto creme e botão primário `laranja-ede` com texto `cacau` (5,02:1, combinação prevista no manual). O logo horizontal `laranja` serve nos dois temas (o manual permite laranja sobre creme e sobre cacau).
+**Por quê:** o manual dá as cores e os contrastes para peças impressas; o app precisa de papéis (superfície, controle, foco) e de um tema escuro que passe AA.
+
+### D114 · Sete status: matiz funcional + clareza + forma + ícone
+**Contexto:** a paleta da marca (laranjas, cacau, creme, amarelo) não tem cores suficientes para 7 status distinguíveis, e o laranja já é a cor da ação.
+**Decisão:** status usam matizes funcionais fora da paleta, só em selos: azul (em andamento), ocre (aguardando aprovação; não o amarelo-oferta), verde (aprovada), ameixa de clareza média (correção solicitada), vermelho **cheio** (atrasada), contorno contínuo (pendente) e tracejado (cancelada). Cada status tem ícone de silhueta própria. Testes: AA de texto e ícone nos dois temas; "atrasada" difere de todos por ΔL\* >= 30 e "correção solicitada" dos fundos claros por >= 7; ícones únicos.
+**Por quê:** "cor + ícone + texto, nunca só cor"; quem não distingue matiz ainda separa os grupos pela clareza e pela forma.
+
+### D115 · Tipografia do app
+**Decisão:** Bitter só em título da página (28/34), nome de seção (20/26), números grandes (KPI 40/44 em 900; contador 28/32) e na frase das páginas públicas (44/48); Figtree no resto, com corpo de 16px, título de tarefa/item de 18px e metadado de 14px (o `legenda` de 13px do manual subiu para 14 por legibilidade no celular). O estilo `etiqueta` do manual (caixa alta espaçada) não entra no app. As variáveis do `next/font` se chamam `--font-bitter` e `--font-figtree`; os tokens de design são `--font-display` e `--font-text` (nomes diferentes evitam variável que referencia a si mesma).
+**Por quê:** prompt (texto corrido 16px+, sem rótulo minúsculo em caixa alta) e manual (Bitter só em títulos curtos e números).
+
+### D116 · Catálogo de protótipo só com `ENABLE_PROTOTYPES=1`
+**Decisão:** `/prototipo/componentes` (grupo `src/app/(dev)/`) mostra todo componente em todo estado, nos temas claro e escuro lado a lado, com dados `[EXEMPLO]` (`_fixtures.ts`). O layout **e** a página chamam `assertPrototypesEnabled()` (`src/lib/dev/prototypes.ts`, `server-only`), que lê `process.env.ENABLE_PROTOTYPES` a cada pedido e responde `notFound()` se não for exatamente `"1"`. A variável não tem prefixo `NEXT_PUBLIC_` (não é embutida no build). O E2E roda sem a variável e confere o 404 com CSP.
+**Por quê:** o catálogo serve à revisão de design; em produção, sem a variável, ele não existe. Mesmo se ligado por engano, só mostra dados de exemplo.
+
+### D117 · Movimento: valores e exceções
+**Decisão:** curvas exatas do prompt; durações: press 160ms, popover 180, dropdown 200, modal 240, gaveta 280, check 180, troca do botão de envio 200, layout 220 (todas < 300ms; teste confere as faixas). Só `transform`/`opacity`, com duas exceções pedidas pelo prompt: o traço do check (`stroke-dashoffset`) e o blur de 2px na troca do botão de envio. Cor de hover troca sem transição. Cartão inteiro pressiona com `scale(0.98)` (superfície larga; botões e itens com 0.97). Com `prefers-reduced-motion`, nada se desloca, escala ou gira (o check aparece por opacidade; o indicador pulsa; o esqueleto para). O pacote `motion` ainda não entrou: nada da Fase 2 precisa dele (CSS basta).
+**Por quê:** "restrição" do prompt: uso diário pede menos motion.
+
+### D118 · Ícones próprios em SVG
+**Decisão:** nenhuma biblioteca de ícones está na lista curada; os ícones são componentes SVG em `src/components/icons` (traço 2px arredondado, grade 24, `currentColor`), só os que a interface usa. Decorativo por padrão (`aria-hidden`); com `title`, vira imagem com nome.
+**Por quê:** manual (linha arredondada, cacau ou laranja-brasa) e regra de não adicionar dependência fora da lista.
+
+### D119 · Páginas públicas com a marca inteira
+**Decisão:** login e senha (modo Read): no computador, painel `laranja-ede` à esquerda com o logo principal branco, o padrão de casas tom sobre tom numa faixa sem texto e a frase "As tarefas das três lojas, num lugar só." em Bitter 44px branco (branco sobre laranja só em texto grande); no celular, faixa laranja com o logo horizontal branco e o formulário logo abaixo. Formulário em cartão branco sobre creme, título em Bitter. Rótulos e textos dos botões continuam os mesmos ("E-mail", "Senha", "Entrar"), sem mudar os seletores do E2E.
+**Por quê:** a página pública é a única superfície de expressão da marca (PRODUCT.md §6); o app (Operate) fica sóbrio.
 
 ## Riscos aceitos e adiados
 

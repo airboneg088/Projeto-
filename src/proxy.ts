@@ -124,11 +124,13 @@ export const config = {
      * Todas as rotas, exceto (D69):
      * - _next/static/ (arquivos do build) e exatamente /_next/image (otimizador de imagens, que só
      *   responde imagem ou texto);
-     * - /icon.svg (ícone de metadados de src/app/icon.svg).
+     * - /icon.svg (ícone de metadados de src/app/icon.svg);
+     * - os 10 arquivos de public/brand/ (logos do manual da marca), nome a nome (D110).
      * Só arquivos que EXISTEM ficam de fora, e cada exclusão é ancorada no fim ($): sem âncora,
      * /_next/imagex, /_next/image-foo/bar etc. pulavam o proxy e o 404 em HTML saía sem CSP (D89).
      * Arquivo novo em public/ (robots.txt, manifest, service worker) entra nesta lista.
+     * As fontes (next/font/local) saem em /_next/static/media/ e já estão fora.
      */
-    "/((?!_next/static/|_next/image$|icon\\.svg$).*)",
+    "/((?!_next/static/|_next/image$|icon\\.svg$|brand/ede-(?:horizontal-(?:laranja|branco|cacau)|principal-(?:laranja|branco)|icone-(?:app|circulo)|simbolo-(?:laranja|branco|cacau))\\.svg$).*)",
   ],
 };

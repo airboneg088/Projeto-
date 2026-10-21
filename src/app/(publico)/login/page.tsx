@@ -32,7 +32,8 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
 
   return (
     <>
-      <h1 className="mb-6 text-2xl font-semibold">Entrar</h1>
+      <h1 className="type-title-1 text-text">Entrar</h1>
+      <p className="mt-1.5 mb-6 text-text-muted">Use o e-mail e a senha da sua conta.</p>
       {errorMessage ? (
         <Notice tone="error" className="mb-5">
           {errorMessage}

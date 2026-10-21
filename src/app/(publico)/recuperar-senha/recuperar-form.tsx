@@ -35,8 +35,8 @@ export function RecuperarForm() {
         defaultValue={state.email}
         error={clientErrors.email ?? state.fieldErrors?.email}
       />
-      <Button type="submit" block disabled={pending}>
-        {pending ? "Enviando…" : "Enviar link"}
+      <Button type="submit" block loading={pending} loadingLabel="Enviando…">
+        Enviar link
       </Button>
       <Link href="/login" className="link self-center">
         Voltar para o login

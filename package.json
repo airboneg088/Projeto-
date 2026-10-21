@@ -16,6 +16,7 @@
     "pretypecheck": "next typegen",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests",
+    "tokens": "TOKENS_WRITE=1 vitest run src/lib/design/tokens-sync.test.ts",
     "test:e2e": "playwright test",
     "check:secrets": "node scripts/check-secrets.mjs",
     "stack:up": "bash scripts/local-stack/up.sh",

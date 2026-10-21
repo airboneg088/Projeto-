@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { buttonVariants } from "@/components/ui/button";
 import { AUTH_MESSAGES } from "@/lib/auth/messages";
 import { getRecoverySession } from "@/lib/auth/recovery.server";
 import { createClient } from "@/lib/supabase/server";
@@ -16,9 +17,9 @@ export default async function RedefinirSenhaPage() {
   if (!recovery) {
     return (
       <>
-        <h1 className="mb-2 text-2xl font-semibold">Criar nova senha</h1>
-        <p className="mb-6 text-text-muted">{AUTH_MESSAGES.recoveryRequired}</p>
-        <Link href="/recuperar-senha" className="btn btn-primary btn-block">
+        <h1 className="type-title-1 text-text">Criar nova senha</h1>
+        <p className="mt-1.5 mb-6 text-text-muted">{AUTH_MESSAGES.recoveryRequired}</p>
+        <Link href="/recuperar-senha" className={buttonVariants({ block: true })}>
           Pedir um novo link
         </Link>
         <p className="mt-4 text-center">
@@ -32,8 +33,8 @@ export default async function RedefinirSenhaPage() {
 
   return (
     <>
-      <h1 className="mb-2 text-2xl font-semibold">Criar nova senha</h1>
-      <p className="mb-6 text-text-muted">
+      <h1 className="type-title-1 text-text">Criar nova senha</h1>
+      <p className="mt-1.5 mb-6 text-text-muted">
         {recovery.email ? (
           <>
             Escolha uma senha nova para a conta{" "}

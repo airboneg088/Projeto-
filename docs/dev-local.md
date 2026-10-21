@@ -18,7 +18,7 @@ Para não depender disso, o repositório traz um **"mini Supabase"** sem Docker,
 | SMTP sink      | `smtp-sink.mjs`: grava todo e-mail em `.local/mail/`, nunca envia                                      | Inbucket/Mailpit              |
 | Shim de storage| `storage-shim.sql`: tabelas `storage.buckets` e `storage.objects` iguais às do storage-api             | Storage (só a parte SQL)      |
 
-Os mesmos arquivos do projeto (`supabase/config.toml`, `supabase/migrations/`, `supabase/seed.sql`, `supabase/tests/`) funcionam nas duas stacks: na local e na oficial com Docker (seção 7).
+Os mesmos arquivos do projeto (`supabase/config.toml`, `supabase/migrations/`, `supabase/seed.sql`, `supabase/tests/`) funcionam nas duas stacks: na local e na oficial com Docker (seção 8).
 
 ## 2. Pré-requisitos
 
@@ -46,6 +46,7 @@ Se o comando rodar como `root`, o Postgres roda como o usuário `postgres` do si
 | `pnpm db:rollback-check`                 | Num banco descartável (`rollback_check`), aplica cada migration e o rollback dela (`supabase/rollbacks/`) e confere que o catálogo volta igual. |
 | `pnpm test:e2e`                          | Playwright (mobile 390 e desktop 1440) contra o build de produção: rode `pnpm build` antes. Recria o banco `postgres` com o seed no início. |
 | `pnpm verify`                            | `lint` + `typecheck` + `test` + `check:secrets` + `db:test`.                                                                               |
+| `pnpm tokens`                            | Regrava `src/app/tokens.css` e as tabelas do `DESIGN.md` a partir de `src/lib/design/tokens.ts` (fonte única dos tokens de design). Rode depois de mudar um token; o `pnpm test` falha se esquecer. |
 
 Fluxo típico:
 
@@ -124,7 +125,18 @@ Regras do Auth que valem aqui e no hospedado (lidas do `supabase/config.toml`): 
 - **Storage.** Ninguém lê `storage.objects` pela API (D77): o servidor confere `can_read_evidence`/`can_read_reference` como o usuário e assina a URL de até 5 min com a chave secreta (`src/lib/storage/signed-url.server.ts`). As duas conferências e o servidor exigem o caminho no formato exato do bucket (D92): o texto conferido é o texto assinado. Os testes de storage chamam essas funções em vez de contar linhas.
 - **Segredos (`pnpm check:secrets`).** Regras em `scripts/check-secrets.mjs` (D71) e autoteste em `scripts/__tests__/check-secrets.test.mjs` (roda no `pnpm test`). Só `src/lib/supabase/admin.ts` lê `env.server.ts`, e só módulos `*.server.ts` com `import "server-only"` importam o `admin.ts`. As importações são lidas pelo parser do TypeScript (toda forma: `import`, `export ... from`, `import()`, `require`); `import()`/`require()` com caminho que não é texto fixo é erro (D103). Em CI, rode com `CI=true` e com `SUPABASE_SECRET_KEY` no ambiente depois do `pnpm build`: sem o valor da chave, o build não tem com o que ser comparado e o script falha. O E2E `e2e/segredos.spec.ts` varre o HTML e o RSC servidos.
 
-## 7. Usando o Supabase oficial (máquina com Docker)
+## 7. Catálogo de componentes (protótipo)
+
+`/prototipo/componentes` mostra todos os componentes do design system em todos os estados, nos temas claro e escuro lado a lado, com dados de exemplo (`[EXEMPLO]`). **Só existe com `ENABLE_PROTOTYPES=1`** no ambiente do servidor; sem a variável (o padrão, inclusive em produção), todo `/prototipo/*` responde 404 (D116). A variável é lida a cada pedido, não no build: o mesmo build serve com ou sem o catálogo.
+
+```bash
+ENABLE_PROTOTYPES=1 pnpm dev                     # http://localhost:3000/prototipo/componentes
+pnpm build && ENABLE_PROTOTYPES=1 pnpm start --port 3201   # build de produção com o catálogo
+```
+
+Não precisa de login nem da stack local (usa só dados de exemplo de `src/app/(dev)/prototipo/_fixtures.ts`). Não defina `ENABLE_PROTOTYPES` na Vercel. Regras do design system: `DESIGN.md`. Capturas da fundação visual: `docs/prototipo/fundacao/`.
+
+## 8. Usando o Supabase oficial (máquina com Docker)
 
 Numa máquina com Docker, prefira a stack oficial. Os arquivos do projeto são os mesmos:
 
@@ -137,7 +149,7 @@ npx supabase@2.121.0 status -o env  # valores para o .env.local
 
 Preencha o `.env.local` a partir do `.env.example` com a URL da API e as chaves impressas pelo `status` (as chaves JWT `anon` e `service_role` padrão são as mesmas da stack local). Os e-mails ficam no servidor de e-mail de teste da CLI (`http://127.0.0.1:54324`) em vez de `.local/mail`. Não rode as duas stacks ao mesmo tempo: as portas 54321 e 54322 coincidem (`pnpm stack:down` antes).
 
-## 8. Diferenças conhecidas em relação ao hospedado
+## 9. Diferenças conhecidas em relação ao hospedado
 
 | Ponto                    | Stack local                                                                                         | Supabase hospedado / `supabase start`               | O que fazer                                                                                         |
 | ------------------------ | --------------------------------------------------------------------------------------------------- | --------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
@@ -152,7 +164,7 @@ Preencha o `.env.local` a partir do `.env.example` com a URL da API e as chaves 
 | Login por link de e-mail | Desligado (`GOTRUE_EXTERNAL_EMAIL_MAGIC_LINK_ENABLED=false` no `auth-env.mjs`; sem chave no `config.toml` da CLI) | Ligado por padrão                                   | Desligar no projeto se a opção existir; senão o captcha da Fase 7 cobre (D67, R3-APP-01).            |
 | E-mail                   | Capturado em `.local/mail/`                                                                         | Resend (produção) / servidor de teste da CLI        | —                                                                                                   |
 
-## 9. Problemas comuns
+## 10. Problemas comuns
 
 - **"Postgres local não está rodando"** → `pnpm stack:up`.
 - **Serviço fora do ar** → `pnpm stack:status` e o log em `.local/logs/<serviço>.log` (`postgres`, `rest`, `auth`, `gateway`, `smtp`, `auth-migrate`).

@@ -90,6 +90,15 @@ for (const path of [
   "/_next/image-foo/bar",
   "/_next/imagens/logo.png",
   "/_next/image%2F..%2Flogin",
+  // D110: só os logos que existem em public/brand/ ficam fora do proxy, nome a nome.
+  "/brand/nao-existe.svg",
+  "/brand/ede-horizontal-laranja.svgx",
+  "/brand/ede-horizontal-laranja.svg/x",
+  "/brand/ede-horizontal-verde.svg",
+  "/brand/",
+  // O catálogo de protótipo só existe com ENABLE_PROTOTYPES=1 (o E2E roda sem).
+  "/prototipo/componentes",
+  "/prototipo",
 ]) {
   test(`404 de ${path} também tem CSP e cabeçalhos de segurança`, async ({ request }) => {
     const response = await request.get(path);
@@ -103,4 +112,40 @@ test("/icon.svg (arquivo real fora do proxy) continua servido", async ({ request
   expect(response.status()).toBe(200);
   expect(response.headers()["content-type"]).toContain("image/svg+xml");
   expect(response.headers()["x-content-type-options"]).toBe("nosniff");
+});
+
+test("logos de public/brand (fora do proxy) são servidos como SVG", async ({ request }) => {
+  for (const name of [
+    "ede-horizontal-laranja",
+    "ede-horizontal-branco",
+    "ede-horizontal-cacau",
+    "ede-principal-laranja",
+    "ede-principal-branco",
+    "ede-icone-app",
+    "ede-icone-circulo",
+    "ede-simbolo-laranja",
+    "ede-simbolo-branco",
+    "ede-simbolo-cacau",
+  ]) {
+    const response = await request.get(`/brand/${name}.svg`);
+    expect(response.status(), name).toBe(200);
+    expect(response.headers()["content-type"], name).toContain("image/svg+xml");
+    expect(response.headers()["x-content-type-options"], name).toBe("nosniff");
+  }
+});
+
+test("fontes da marca são servidas pelo próprio app e pré-carregadas", async ({ request }) => {
+  // O Next manda o preload das fontes no cabeçalho Link (e nas dicas do RSC), não em <link>.
+  const response = await request.get("/login");
+  const link = response.headers()["link"] ?? "";
+  const fonts = [...link.matchAll(/<([^>]+\.woff2)>; rel=preload; as="font"/g)].map(
+    (match) => match[1]!,
+  );
+  expect(fonts.length).toBe(7);
+  for (const href of fonts) {
+    expect(href, href).toMatch(/^\/_next\/static\/media\//);
+    const font = await request.get(href);
+    expect(font.status(), href).toBe(200);
+    expect(font.headers()["content-type"], href).toContain("font/woff2");
+  }
 });

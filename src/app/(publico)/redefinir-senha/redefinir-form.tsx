@@ -26,7 +26,7 @@ export function RedefinirForm() {
           {state.expired ? (
             <>
               {" "}
-              <Link href="/recuperar-senha" className="underline underline-offset-2">
+              <Link href="/recuperar-senha" className="font-semibold underline underline-offset-4">
                 Pedir um novo link
               </Link>
             </>
@@ -56,8 +56,8 @@ export function RedefinirForm() {
         required
         error={clientErrors.confirmPassword ?? state.fieldErrors?.confirmPassword}
       />
-      <Button type="submit" block disabled={pending}>
-        {pending ? "Salvando…" : "Salvar nova senha"}
+      <Button type="submit" block loading={pending} loadingLabel="Salvando…">
+        Salvar nova senha
       </Button>
     </form>
   );

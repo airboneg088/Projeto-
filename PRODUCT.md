@@ -1,6 +1,6 @@
 # Éde Gestão — Contexto de produto
 
-> Fonte de verdade do **porquê** e **para quem**. Decisões visuais ficam em `DESIGN.md` (Fase 2).
+> Fonte de verdade do **porquê** e **para quem**. Decisões visuais ficam em `DESIGN.md`.
 > Decisões técnicas reversíveis ficam em `docs/decisoes.md`.
 
 ## 1. O que é
@@ -92,7 +92,7 @@ Fora desta versão: push, WhatsApp (interface de canal pronta, sem implementar),
 
 ## 11. Identidade visual
 
-**Pendente.** Aguardando logo, cores e fonte oficiais da Éde Utilidades. Sem material oficial, serão propostas de 2 a 3 direções de tokens para escolha antes de definir cores e tipografia (registro em `DESIGN.md`).
+**Definida: é o manual da marca da própria Éde Utilidades** ([manual da marca](https://claude.ai/artifact/YGoYHxstwQUUx9PJYAH2KR)): logo (casa-É), 8 cores (`laranja-ede`, `laranja-brasa`, `cacau`, `cacau-suave`, `creme`, `areia`, `branco`, `amarelo-oferta`), Bitter para títulos curtos e números, Figtree para tudo que se lê, espaços em múltiplos de 8, raios `raio-s`/`raio-m`/`raio-l`/pílula e ícones de linha arredondados. Como existe identidade oficial, a Fase 2 não propôs direções alternativas de tokens (D111). A tradução do manual para o app (modo Operate, temas claro e escuro, cores de status) está em `DESIGN.md`; os valores ficam em `src/lib/design/tokens.ts`.
 
 ## 12. Como saberemos que deu certo
 

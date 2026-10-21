@@ -3,12 +3,16 @@
 import { useTheme } from "next-themes";
 import { useSyncExternalStore } from "react";
 
+import { IconMoon, IconSun } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 
 const subscribe = () => () => {};
 
-/** Alterna entre tema claro e escuro. Antes de hidratar mostra um rótulo neutro. */
-export function ThemeToggle() {
+/**
+ * Alterna entre tema claro (padrão) e escuro. Botão de ícone de 44px com nome acessível fixo
+ * ("Tema escuro") e aria-pressed; antes de hidratar não declara estado.
+ */
+export function ThemeToggle({ className }: { className?: string }) {
   const { resolvedTheme, setTheme } = useTheme();
   const hydrated = useSyncExternalStore(
     subscribe,
@@ -20,11 +24,14 @@ export function ThemeToggle() {
   return (
     <Button
       variant="ghost"
-      size="sm"
+      size="icon"
+      className={className}
       onClick={() => setTheme(isDark ? "light" : "dark")}
       aria-pressed={hydrated ? isDark : undefined}
+      aria-label="Tema escuro"
+      title={isDark ? "Voltar ao tema claro" : "Usar tema escuro"}
     >
-      Tema escuro
+      {isDark ? <IconSun size={22} /> : <IconMoon size={22} />}
     </Button>
   );
 }

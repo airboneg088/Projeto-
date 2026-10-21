@@ -1,0 +1,324 @@
+/*
+ * GERADO por `pnpm tokens` a partir de src/lib/design/tokens.ts. Não edite à mão:
+ * mude tokens.ts e rode `pnpm tokens` (o teste tokens-sync.test.ts falha se divergir).
+ *
+ * Tema claro no :root (padrão) e em .light; tema escuro em .dark (classe do next-themes).
+ * As classes também valem em qualquer elemento: o catálogo mostra os dois temas lado a lado.
+ */
+
+:root,
+.light {
+  color-scheme: light;
+  --bg: #FFF4E8;
+  --surface: #FFFFFF;
+  --surface-muted: #F3E6D6;
+  --surface-pressed: #EADAC6;
+  --text: #2A1810;
+  --text-muted: #6B5A50;
+  --brand: #EE5D06;
+  --brand-fg: #FFFFFF;
+  --brand-pattern: #F3711F;
+  --accent: #C2470A;
+  --accent-hover: #A63B07;
+  --accent-fg: #FFFFFF;
+  --accent-text: #A83C07;
+  --focus: #C2470A;
+  --border: #E6D5C0;
+  --border-control: #8C7868;
+  --danger: #B3261E;
+  --danger-hover: #951E17;
+  --danger-fg: #FFFFFF;
+  --danger-text: #A8241B;
+  --success: #1F6E3A;
+  --success-fg: #FFFFFF;
+  --inverse: #2A1810;
+  --inverse-fg: #FFF4E8;
+  --notice-error-bg: #FBE4E1;
+  --notice-error-fg: #8E1F17;
+  --notice-success-bg: #DFEFE1;
+  --notice-success-fg: #1B5B2E;
+  --notice-info-bg: #E1EBF5;
+  --notice-info-fg: #1C4A78;
+  --notice-warning-bg: #FBEDC4;
+  --notice-warning-fg: #664500;
+  --selection: #F9D2B8;
+  --status-pendente-bg: #F7F0E8;
+  --status-pendente-fg: #4A3A30;
+  --status-pendente-icon: #6B5A50;
+  --status-pendente-border: #B9A797;
+  --status-em-andamento-bg: #E1EBF5;
+  --status-em-andamento-fg: #1C4A78;
+  --status-em-andamento-icon: #2D5F96;
+  --status-em-andamento-border: #E1EBF5;
+  --status-aguardando-aprovacao-bg: #FBEDC4;
+  --status-aguardando-aprovacao-fg: #664500;
+  --status-aguardando-aprovacao-icon: #8A5D00;
+  --status-aguardando-aprovacao-border: #FBEDC4;
+  --status-aprovada-bg: #DFEFE1;
+  --status-aprovada-fg: #1B5B2E;
+  --status-aprovada-icon: #2A773F;
+  --status-aprovada-border: #DFEFE1;
+  --status-correcao-solicitada-bg: #E6C3E0;
+  --status-correcao-solicitada-fg: #5A1F56;
+  --status-correcao-solicitada-icon: #7E3478;
+  --status-correcao-solicitada-border: #E6C3E0;
+  --status-atrasada-bg: #B3261E;
+  --status-atrasada-fg: #FFFFFF;
+  --status-atrasada-icon: #FFFFFF;
+  --status-atrasada-border: #B3261E;
+  --status-cancelada-bg: #F1ECE7;
+  --status-cancelada-fg: #5C514A;
+  --status-cancelada-icon: #7A6D64;
+  --status-cancelada-border: #A39486;
+  --elevation-float: 0 8px 24px -8px rgb(42 24 16 / 0.22), 0 2px 6px -2px rgb(42 24 16 / 0.12);
+  --elevation-dialog: 0 24px 64px -16px rgb(42 24 16 / 0.32), 0 4px 12px -4px rgb(42 24 16 / 0.16);
+  --scrim: rgb(42 24 16 / 0.45);
+}
+
+.dark {
+  color-scheme: dark;
+  --bg: #170E09;
+  --surface: #221610;
+  --surface-muted: #2E2018;
+  --surface-pressed: #3B2A20;
+  --text: #FFF4E8;
+  --text-muted: #CDBBAC;
+  --brand: #EE5D06;
+  --brand-fg: #FFFFFF;
+  --brand-pattern: #F3711F;
+  --accent: #EE5D06;
+  --accent-hover: #FF7A2E;
+  --accent-fg: #2A1810;
+  --accent-text: #FF9A5E;
+  --focus: #FF9A5E;
+  --border: #3B2A20;
+  --border-control: #8F7A6B;
+  --danger: #F2877D;
+  --danger-hover: #F59D94;
+  --danger-fg: #2B0B07;
+  --danger-text: #FF9C92;
+  --success: #79C58C;
+  --success-fg: #0E2416;
+  --inverse: #F3E6D6;
+  --inverse-fg: #2A1810;
+  --notice-error-bg: #3E1A16;
+  --notice-error-fg: #FFB3AA;
+  --notice-success-bg: #163421;
+  --notice-success-fg: #ABDDB6;
+  --notice-info-bg: #1B2D42;
+  --notice-info-fg: #BBD6F2;
+  --notice-warning-bg: #3B2D0C;
+  --notice-warning-fg: #F4D58E;
+  --selection: #5A2E14;
+  --status-pendente-bg: #2B2019;
+  --status-pendente-fg: #EDE1D6;
+  --status-pendente-icon: #C9B7A8;
+  --status-pendente-border: #6E5D51;
+  --status-em-andamento-bg: #1B2D42;
+  --status-em-andamento-fg: #BBD6F2;
+  --status-em-andamento-icon: #8EB8E6;
+  --status-em-andamento-border: #1B2D42;
+  --status-aguardando-aprovacao-bg: #3B2D0C;
+  --status-aguardando-aprovacao-fg: #F4D58E;
+  --status-aguardando-aprovacao-icon: #E3B851;
+  --status-aguardando-aprovacao-border: #3B2D0C;
+  --status-aprovada-bg: #163421;
+  --status-aprovada-fg: #ABDDB6;
+  --status-aprovada-icon: #79C58C;
+  --status-aprovada-border: #163421;
+  --status-correcao-solicitada-bg: #5E2D59;
+  --status-correcao-solicitada-fg: #FBE3F7;
+  --status-correcao-solicitada-icon: #E8A9DF;
+  --status-correcao-solicitada-border: #5E2D59;
+  --status-atrasada-bg: #F2877D;
+  --status-atrasada-fg: #2B0B07;
+  --status-atrasada-icon: #2B0B07;
+  --status-atrasada-border: #F2877D;
+  --status-cancelada-bg: #2A221D;
+  --status-cancelada-fg: #BFB2A7;
+  --status-cancelada-icon: #A6988C;
+  --status-cancelada-border: #6E6158;
+  --elevation-float: 0 8px 24px -8px rgb(0 0 0 / 0.6), 0 2px 6px -2px rgb(0 0 0 / 0.4);
+  --elevation-dialog: 0 24px 64px -16px rgb(0 0 0 / 0.7), 0 4px 12px -4px rgb(0 0 0 / 0.5);
+  --scrim: rgb(0 0 0 / 0.6);
+}
+
+/* Movimento: iguais nos dois temas. */
+:root {
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  --duration-press: 160ms;
+  --duration-popover: 180ms;
+  --duration-dropdown: 200ms;
+  --duration-modal: 240ms;
+  --duration-drawer: 280ms;
+  --duration-check: 180ms;
+  --duration-morph: 200ms;
+  --duration-layout: 220ms;
+  --touch-min: 44px;
+  --control-height: 48px;
+  --bar-height: 56px;
+}
+
+/*
+ * Vocabulário do Tailwind restrito aos tokens: sem a paleta padrão (cores fora da marca),
+ * sem sombras de repouso, sem ease-in, sem raios fora do manual e sem texto de 12px.
+ */
+@theme {
+  --color-*: initial;
+  --shadow-*: initial;
+  --inset-shadow-*: initial;
+  --drop-shadow-*: initial;
+  --text-shadow-*: initial;
+  --radius-*: initial;
+  --ease-*: initial;
+  --text-xs: initial;
+  --color-transparent: transparent;
+  --color-current: currentColor;
+  --radius-s: 6px;
+  --radius-m: 12px;
+  --radius-l: 26px;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* Utilitários que mudam com o tema (bg-surface, text-text-muted, border-border…). */
+@theme inline {
+  --font-display: var(--font-bitter), Rockwell, Georgia, serif;
+  --font-text: var(--font-figtree), Arial, sans-serif;
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-surface-pressed: var(--surface-pressed);
+  --color-text: var(--text);
+  --color-text-muted: var(--text-muted);
+  --color-brand: var(--brand);
+  --color-brand-fg: var(--brand-fg);
+  --color-brand-pattern: var(--brand-pattern);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-fg: var(--accent-fg);
+  --color-accent-text: var(--accent-text);
+  --color-focus: var(--focus);
+  --color-border: var(--border);
+  --color-border-control: var(--border-control);
+  --color-danger: var(--danger);
+  --color-danger-hover: var(--danger-hover);
+  --color-danger-fg: var(--danger-fg);
+  --color-danger-text: var(--danger-text);
+  --color-success: var(--success);
+  --color-success-fg: var(--success-fg);
+  --color-inverse: var(--inverse);
+  --color-inverse-fg: var(--inverse-fg);
+  --color-notice-error-bg: var(--notice-error-bg);
+  --color-notice-error-fg: var(--notice-error-fg);
+  --color-notice-success-bg: var(--notice-success-bg);
+  --color-notice-success-fg: var(--notice-success-fg);
+  --color-notice-info-bg: var(--notice-info-bg);
+  --color-notice-info-fg: var(--notice-info-fg);
+  --color-notice-warning-bg: var(--notice-warning-bg);
+  --color-notice-warning-fg: var(--notice-warning-fg);
+  --color-selection: var(--selection);
+  --color-status-pendente-bg: var(--status-pendente-bg);
+  --color-status-pendente-fg: var(--status-pendente-fg);
+  --color-status-pendente-icon: var(--status-pendente-icon);
+  --color-status-pendente-border: var(--status-pendente-border);
+  --color-status-em-andamento-bg: var(--status-em-andamento-bg);
+  --color-status-em-andamento-fg: var(--status-em-andamento-fg);
+  --color-status-em-andamento-icon: var(--status-em-andamento-icon);
+  --color-status-em-andamento-border: var(--status-em-andamento-border);
+  --color-status-aguardando-aprovacao-bg: var(--status-aguardando-aprovacao-bg);
+  --color-status-aguardando-aprovacao-fg: var(--status-aguardando-aprovacao-fg);
+  --color-status-aguardando-aprovacao-icon: var(--status-aguardando-aprovacao-icon);
+  --color-status-aguardando-aprovacao-border: var(--status-aguardando-aprovacao-border);
+  --color-status-aprovada-bg: var(--status-aprovada-bg);
+  --color-status-aprovada-fg: var(--status-aprovada-fg);
+  --color-status-aprovada-icon: var(--status-aprovada-icon);
+  --color-status-aprovada-border: var(--status-aprovada-border);
+  --color-status-correcao-solicitada-bg: var(--status-correcao-solicitada-bg);
+  --color-status-correcao-solicitada-fg: var(--status-correcao-solicitada-fg);
+  --color-status-correcao-solicitada-icon: var(--status-correcao-solicitada-icon);
+  --color-status-correcao-solicitada-border: var(--status-correcao-solicitada-border);
+  --color-status-atrasada-bg: var(--status-atrasada-bg);
+  --color-status-atrasada-fg: var(--status-atrasada-fg);
+  --color-status-atrasada-icon: var(--status-atrasada-icon);
+  --color-status-atrasada-border: var(--status-atrasada-border);
+  --color-status-cancelada-bg: var(--status-cancelada-bg);
+  --color-status-cancelada-fg: var(--status-cancelada-fg);
+  --color-status-cancelada-icon: var(--status-cancelada-icon);
+  --color-status-cancelada-border: var(--status-cancelada-border);
+  --shadow-float: var(--elevation-float);
+  --shadow-dialog: var(--elevation-dialog);
+}
+
+/* Estilos de texto (DESIGN.md › Tipografia): type-<nome>. */
+@utility type-display {
+  font-family: var(--font-bitter), Rockwell, Georgia, serif;
+  font-size: 2.75rem;
+  line-height: 3rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+@utility type-kpi {
+  font-family: var(--font-bitter), Rockwell, Georgia, serif;
+  font-size: 2.5rem;
+  line-height: 2.75rem;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+@utility type-counter {
+  font-family: var(--font-bitter), Rockwell, Georgia, serif;
+  font-size: 1.75rem;
+  line-height: 2rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+@utility type-title-1 {
+  font-family: var(--font-bitter), Rockwell, Georgia, serif;
+  font-size: 1.75rem;
+  line-height: 2.125rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+@utility type-title-2 {
+  font-family: var(--font-bitter), Rockwell, Georgia, serif;
+  font-size: 1.25rem;
+  line-height: 1.625rem;
+  font-weight: 800;
+}
+
+@utility type-lead {
+  font-family: var(--font-figtree), Arial, sans-serif;
+  font-size: 1.125rem;
+  line-height: 1.625rem;
+  font-weight: 600;
+}
+
+@utility type-body {
+  font-family: var(--font-figtree), Arial, sans-serif;
+  font-size: 1rem;
+  line-height: 1.5rem;
+  font-weight: 400;
+}
+
+@utility type-body-strong {
+  font-family: var(--font-figtree), Arial, sans-serif;
+  font-size: 1rem;
+  line-height: 1.5rem;
+  font-weight: 600;
+}
+
+@utility type-meta {
+  font-family: var(--font-figtree), Arial, sans-serif;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 500;
+}

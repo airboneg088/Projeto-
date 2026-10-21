@@ -2,8 +2,17 @@
 
 import { CSPProvider } from "@base-ui/react/csp-provider";
 import { ThemeProvider, useTheme } from "next-themes";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { Toaster } from "sonner";
+
+/** Toasts com os tokens da marca (mudam com o tema); a sombra é permitida: o toast flutua. */
+const TOASTER_STYLE = {
+  fontFamily: "var(--font-figtree), Arial, sans-serif",
+  "--normal-bg": "var(--surface)",
+  "--normal-text": "var(--text)",
+  "--normal-border": "var(--border)",
+  "--border-radius": "12px",
+} as CSSProperties;
 
 function ThemedToaster() {
   const { resolvedTheme } = useTheme();
@@ -12,6 +21,7 @@ function ThemedToaster() {
       theme={resolvedTheme === "dark" ? "dark" : "light"}
       position="top-center"
       closeButton
+      style={TOASTER_STYLE}
       toastOptions={{ duration: 5000 }}
     />
   );

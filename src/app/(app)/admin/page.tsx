@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { AreaPlaceholder } from "@/components/area-placeholder";
+import { IconUser } from "@/components/icons";
 import { areaMetadata, requireArea } from "@/lib/auth/context";
 
 export function generateMetadata(): Promise<Metadata> {
@@ -13,6 +14,7 @@ export default async function AdminPage() {
   return (
     <AreaPlaceholder
       title="Administração"
+      icon={IconUser}
       phase="Fase 7"
       description="Lojas, setores, usuários, vínculos, retenção de fotos e privacidade (LGPD)."
     />

@@ -19,3 +19,6 @@ docs/diagramas
 
 # Markdown (docs em pt-BR escritos à mão; AGENTS.md é reescrito pelo `next dev`)
 *.md
+
+# Gerado por `pnpm tokens` (src/lib/design/render.ts)
+src/app/tokens.css

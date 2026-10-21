@@ -52,7 +52,7 @@ Gerenciador de pacotes: **pnpm**.
 4. Teste SQL: `UPDATE`/`DELETE` em `audit_log`, `evidences` e `reviews` falham.
 5. Teste SQL: views de indicadores devolvem os valores esperados escritos no teste.
 6. E2E: colaborador logado não acessa `/gerente` nem `/painel`.
-7. `grep` confirma que `SUPABASE_SERVICE_ROLE_KEY` não aparece em nenhum arquivo importado por código de cliente.
+7. `pnpm check:secrets` (`scripts/check-secrets.mjs`) confirma que `SUPABASE_SECRET_KEY` (a chave secreta, antiga `service_role`) não aparece em nenhum arquivo importado por código de cliente nem no build.
 8. Lint, typecheck e testes: zero erros.
 
 **Preciso de você:** respostas da Fase 0. Não precisa de conta Supabase ainda (roda local).
@@ -82,8 +82,8 @@ Gerenciador de pacotes: **pnpm**.
 - "Hoje" (contadores + lista por janela), execução (instruções, imagem de referência, checklist, câmera, observação, enviar), histórico próprio, notificações.
 - Captura: `capture="environment"` + `getUserMedia` quando suportado; rejeição de arquivo com EXIF/`lastModified` anterior ao início da tentativa; "sem EXIF" vira suspeita (não bloqueia).
 - Compressão no cliente (~1600px, ~300 KB, JPEG), marca d'água (loja · data/hora · colaborador), sha256 e phash, GPS opcional.
-- Fila offline em IndexedDB (`idb`) + `POST /api/sync` idempotente por `client_mutation_id`; indicador "N envios aguardando conexão"; aviso de conflito (servidor vence).
-- PWA instalável: manifest, ícones, splash, service worker (Serwist).
+- Fila offline em IndexedDB (`idb`) + `POST /api/sync` idempotente por `client_mutation_id`; indicador "N envios aguardando conexão"; aviso de conflito (servidor vence). A fila manda o horário do aparelho no início (`start_attempt`, D72) e nas respostas (D56); fotos são lidas por URL assinada criada no servidor (D77).
+- PWA instalável: manifest, ícones, splash, service worker (Serwist). Arquivos novos em `public/` (manifest, `sw.js`, ícones) entram na exclusão do `matcher` do proxy (D69). A sessão fica em cookie HttpOnly (D63): a fila sincroniza pelo servidor (`POST /api/sync`) e a foto sobe por URL assinada criada no servidor.
 
 **Critérios de aceite**
 1. E2E (390px): tarefa com foto obrigatória não envia sem foto; mensagem diz o que fazer.
@@ -103,6 +103,7 @@ Gerenciador de pacotes: **pnpm**.
 - Fila de aprovação (foto em tela cheia com swipe to dismiss, comparação com referência, aprovar com 1 toque, reprovar com dialog e motivo obrigatório, marcação dos itens reprovados).
 - Reexecução, tarefas avulsas, CRUD de rotinas com versão/snapshot, agendamentos, equipe.
 - Job `pg_cron` de geração idempotente no fuso de cada loja; roll-over para `overdue`; planos de ação (mesmo item reprovado 3× em 30 dias).
+- Antes de a chave secreta gravar operação (job e Server Actions): guardas de INSERT no histórico (risco R3-FUNCOES-02).
 
 **Critérios de aceite**
 1. Teste SQL: rodar a geração 2× para a mesma data → mesma contagem de tarefas.
@@ -115,7 +116,7 @@ Gerenciador de pacotes: **pnpm**.
 
 ## Fase 5 — Painel da proprietária, relatórios e exportação · entrega C7
 
-**Entregáveis:** painel das 3 lojas com filtros (período, loja, setor, funcionário, status), indicadores, drill-down até tarefa e foto, recharts (sem animação de entrada), NumberFlow nos KPIs, relatórios diário/semanal/mensal, exportação CSV e Excel (registrada no `audit_log`).
+**Entregáveis:** painel das 3 lojas com filtros (período, loja, setor, funcionário, status), indicadores, drill-down até tarefa e foto, recharts (sem animação de entrada), NumberFlow nos KPIs, relatórios diário/semanal/mensal, exportação CSV e Excel (registrada no `audit_log` antes de exportar; limite da D76). Definir como a nota e "% na janela" tratam tarefa ainda no prazo (risco R3-REGRAS-07).
 
 **Critérios de aceite**
 1. Teste com dados de exemplo: cada KPI exibido = valor esperado escrito no teste.
@@ -140,7 +141,7 @@ Gerenciador de pacotes: **pnpm**.
 
 ## Fase 7 — Endurecimento e revisão de qualidade · entrega C10
 
-**Entregáveis:** `/impeccable audit` e `harden` em todas as telas; `/review-animations`; `/find-animation-opportunities`; `/impeccable polish`; Playwright E2E dos fluxos críticos em 390px e 1440px; rate limit no login; páginas de política de privacidade e termos; canal do titular (LGPD); job de retenção de fotos.
+**Entregáveis:** `/impeccable audit` e `harden` em todas as telas; `/review-animations`; `/find-animation-opportunities`; `/impeccable polish`; Playwright E2E dos fluxos críticos em 390px e 1440px; rate limit no login (no app, por e-mail + ip, contado no Postgres; ver R2-APP-07 em `docs/decisoes.md`) e captcha no Auth (R3-APP-01); `db-pre-request` recusando token de sessão encerrada (R3-APP-03); páginas de política de privacidade e termos; canal do titular (LGPD), com a página "Meus dados" também para quem saiu (R3-08); recuperação de senha em dois passos, que funciona em outro navegador (R3-05); leituras de suporte do admin auditadas (R3-09); job de retenção de fotos.
 
 **Critérios de aceite**
 1. `/impeccable audit` sem problemas críticos.

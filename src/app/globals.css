@@ -1,0 +1,331 @@
+/*
+ * Tokens provisórios — a identidade visual é definida na Fase 2
+ *
+ * Neutros, sem marca. Contraste conferido para WCAG AA (texto >= 4,5:1; bordas de campo e anel
+ * de foco >= 3:1) nos temas claro e escuro. O tema escuro é a classe "dark" no <html>,
+ * aplicada pelo next-themes antes da primeira pintura (sem flash).
+ */
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  color-scheme: light;
+
+  /* Superfícies: degraus de tom em vez de linhas grossas */
+  --surface-0: #f4f4f2; /* fundo da página */
+  --surface-1: #ffffff; /* cartões, cabeçalho, campos */
+  --surface-2: #e8e8e5; /* áreas rebaixadas, hover */
+
+  --text: #1b1b19;
+  --text-muted: #55554f;
+  --border: #dcdcd8; /* divisórias (decorativas) */
+  --border-strong: #7d7d76; /* contorno de campos (>= 3:1) */
+  --focus: #2457c5;
+
+  /* Destaque provisório */
+  --accent: #24569b;
+  --accent-hover: #1c4580;
+  --accent-fg: #ffffff;
+  --accent-text: #1f4f8f; /* links */
+
+  /* Mensagens */
+  --danger-bg: #fdecea;
+  --danger-fg: #a32012;
+  --success-bg: #e7f4ec;
+  --success-fg: #1c6337;
+  --info-bg: #e8f0fa;
+  --info-fg: #1f4f8f;
+
+  /* Status da tarefa (fundo/texto). Sempre com ícone + texto, nunca só cor. */
+  --status-pendente-bg: #eceff3;
+  --status-pendente-fg: #3a4250;
+  --status-em-andamento-bg: #e3eefb;
+  --status-em-andamento-fg: #1d4e8a;
+  --status-aguardando-aprovacao-bg: #fcf1d6;
+  --status-aguardando-aprovacao-fg: #734600;
+  --status-aprovada-bg: #e2f3e8;
+  --status-aprovada-fg: #1b6436;
+  --status-correcao-solicitada-bg: #fde7e2;
+  --status-correcao-solicitada-fg: #9e2c17;
+  --status-atrasada-bg: #fbe3ec;
+  --status-atrasada-fg: #97193f;
+  --status-cancelada-bg: #ebebea;
+  --status-cancelada-fg: #4d4d4a;
+
+  /* Motion (do prompt; reutilizar sempre) */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  --duration-press: 160ms;
+  --duration-popover: 200ms;
+  --duration-dropdown: 200ms;
+  --duration-modal: 300ms;
+}
+
+.dark {
+  color-scheme: dark;
+
+  --surface-0: #131312;
+  --surface-1: #1c1c1a;
+  --surface-2: #282825;
+
+  --text: #ededea;
+  --text-muted: #acaca5;
+  --border: #33332f;
+  --border-strong: #77776f;
+  --focus: #7fb0ff;
+
+  --accent: #8db8f2;
+  --accent-hover: #a9cbf7;
+  --accent-fg: #0d1b2e;
+  --accent-text: #9cc3f5;
+
+  --danger-bg: #3d1612;
+  --danger-fg: #f6aa9c;
+  --success-bg: #11301c;
+  --success-fg: #93d8ab;
+  --info-bg: #132a45;
+  --info-fg: #9cc6f5;
+
+  --status-pendente-bg: #252a32;
+  --status-pendente-fg: #c7cedb;
+  --status-em-andamento-bg: #13294a;
+  --status-em-andamento-fg: #9fc7f6;
+  --status-aguardando-aprovacao-bg: #382909;
+  --status-aguardando-aprovacao-fg: #f1c66f;
+  --status-aprovada-bg: #10301c;
+  --status-aprovada-fg: #92d8aa;
+  --status-correcao-solicitada-bg: #3c1610;
+  --status-correcao-solicitada-fg: #f5a896;
+  --status-atrasada-bg: #3a1022;
+  --status-atrasada-fg: #f49dbc;
+  --status-cancelada-bg: #2a2a29;
+  --status-cancelada-fg: #c0c0bc;
+}
+
+/* Utilitários do Tailwind ligados aos tokens (mudam com o tema). */
+@theme inline {
+  --color-surface-0: var(--surface-0);
+  --color-surface-1: var(--surface-1);
+  --color-surface-2: var(--surface-2);
+  --color-text: var(--text);
+  --color-text-muted: var(--text-muted);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-focus: var(--focus);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-fg: var(--accent-fg);
+  --color-accent-text: var(--accent-text);
+  --color-danger-bg: var(--danger-bg);
+  --color-danger-fg: var(--danger-fg);
+  --color-success-bg: var(--success-bg);
+  --color-success-fg: var(--success-fg);
+  --color-info-bg: var(--info-bg);
+  --color-info-fg: var(--info-fg);
+
+  --color-status-pendente-bg: var(--status-pendente-bg);
+  --color-status-pendente-fg: var(--status-pendente-fg);
+  --color-status-em-andamento-bg: var(--status-em-andamento-bg);
+  --color-status-em-andamento-fg: var(--status-em-andamento-fg);
+  --color-status-aguardando-aprovacao-bg: var(--status-aguardando-aprovacao-bg);
+  --color-status-aguardando-aprovacao-fg: var(--status-aguardando-aprovacao-fg);
+  --color-status-aprovada-bg: var(--status-aprovada-bg);
+  --color-status-aprovada-fg: var(--status-aprovada-fg);
+  --color-status-correcao-solicitada-bg: var(--status-correcao-solicitada-bg);
+  --color-status-correcao-solicitada-fg: var(--status-correcao-solicitada-fg);
+  --color-status-atrasada-bg: var(--status-atrasada-bg);
+  --color-status-atrasada-fg: var(--status-atrasada-fg);
+  --color-status-cancelada-bg: var(--status-cancelada-bg);
+  --color-status-cancelada-fg: var(--status-cancelada-fg);
+}
+
+@theme {
+  --font-sans:
+    system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+
+  /* Mesmos valores do :root; aqui para os utilitários ease-out/ease-in-out/ease-drawer. */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background: var(--surface-0);
+    color: var(--text);
+    font-family: var(--font-sans);
+    font-size: 1rem; /* texto corrido >= 16px */
+    line-height: 1.5;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  :focus-visible {
+    outline: 3px solid var(--focus);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: var(--info-bg);
+    color: var(--text);
+  }
+}
+
+@layer components {
+  /* Botões: feedback de toque com escala; hover só com mouse; nunca "transition: all". */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-height: 48px;
+    padding: 0 1.25rem;
+    border: 1px solid transparent;
+    border-radius: var(--radius-md);
+    font-size: 1rem;
+    font-weight: 600;
+    line-height: 1.25;
+    text-align: center;
+    cursor: pointer;
+    user-select: none;
+    touch-action: manipulation;
+    transition:
+      transform var(--duration-press) var(--ease-out),
+      background-color var(--duration-press) var(--ease-out),
+      border-color var(--duration-press) var(--ease-out);
+  }
+
+  .btn:active:not(:disabled):not([aria-disabled="true"]) {
+    transform: scale(0.97);
+  }
+
+  .btn:disabled,
+  .btn[aria-disabled="true"] {
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    color: var(--accent-fg);
+  }
+
+  .btn-secondary {
+    background: var(--surface-1);
+    border-color: var(--border-strong);
+    color: var(--text);
+  }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--text);
+  }
+
+  .btn-sm {
+    min-height: 44px;
+    padding: 0 0.875rem;
+  }
+
+  .btn-block {
+    width: 100%;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .btn-primary:hover:not(:disabled) {
+      background: var(--accent-hover);
+    }
+
+    .btn-secondary:hover:not(:disabled),
+    .btn-ghost:hover:not(:disabled) {
+      background: var(--surface-2);
+    }
+
+    .link:hover {
+      text-decoration-thickness: 2px;
+    }
+  }
+
+  /* Campos */
+  .field-label {
+    display: block;
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  .field-input {
+    display: block;
+    width: 100%;
+    min-height: 48px;
+    padding: 0 0.875rem;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-md);
+    background: var(--surface-1);
+    color: var(--text);
+    font-size: 1rem; /* 16px evita o zoom automático do iOS */
+  }
+
+  .field-input[aria-invalid="true"] {
+    border-color: var(--danger-fg);
+  }
+
+  .field-hint {
+    color: var(--text-muted);
+  }
+
+  .field-error {
+    color: var(--danger-fg);
+  }
+
+  /* Links com área de toque de 44px */
+  .link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    color: var(--accent-text);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  /* Avisos em bloco */
+  .notice {
+    border-radius: var(--radius-md);
+    padding: 0.75rem 1rem;
+  }
+
+  .notice-error {
+    background: var(--danger-bg);
+    color: var(--danger-fg);
+  }
+
+  .notice-success {
+    background: var(--success-bg);
+    color: var(--success-fg);
+  }
+
+  .notice-info {
+    background: var(--info-bg);
+    color: var(--info-fg);
+  }
+}
+
+/* Movimento reduzido: mantém cor/opacidade, remove deslocamento e escala. */
+@media (prefers-reduced-motion: reduce) {
+  .btn {
+    transition:
+      background-color var(--duration-press) var(--ease-out),
+      border-color var(--duration-press) var(--ease-out);
+  }
+
+  .btn:active:not(:disabled):not([aria-disabled="true"]) {
+    transform: none;
+  }
+}

@@ -105,6 +105,56 @@ describe("check-secrets", () => {
     expect(noGuard.output).toContain("src/lib/auth/admin-login.server.ts importa");
   });
 
+  // R4-APP-01: formas de importar que o regex antigo não reconhecia (D103)
+  it.each([
+    [
+      "identificador com $",
+      `import { createAdminClient as $admin } from "@/lib/supabase/admin";\nexport default function Page() { return <p>{String($admin)}</p>; }\n`,
+    ],
+    [
+      "comentário dentro das chaves",
+      `import { k /* x */ } from "@/lib/supabase/admin";\nexport default function Page() { return <p>{String(k)}</p>; }\n`,
+    ],
+    [
+      "import() com template literal",
+      "export default async function Page() { const m = await import(`@/lib/supabase/admin`); return <p>{String(m.k)}</p>; }\n",
+    ],
+    [
+      "require",
+      `const { k } = require("@/lib/supabase/admin");\nexport default function Page() { return <p>{String(k)}</p>; }\n`,
+    ],
+    [
+      "import x = require",
+      `import admin = require("@/lib/supabase/admin");\nexport default function Page() { return <p>{String(admin.k)}</p>; }\n`,
+    ],
+    ["export * from", `export * from "@/lib/supabase/admin";\n`],
+  ])("página que importa admin.ts com %s é recusada", (_name, code) => {
+    const { status, output } = run(tree({ "src/app/page.tsx": code }));
+    expect(status).toBe(1);
+    expect(output).toContain("src/app/page.tsx importa src/lib/supabase/admin.ts");
+  });
+
+  it("import() com argumento que não é texto fixo é recusado", () => {
+    const { status, output } = run(
+      tree({
+        "src/app/page.tsx":
+          'const alvo = "@/lib/supabase/" + "admin";\nexport default async function Page() { const m = await import(alvo); return <p>{String(m)}</p>; }\n',
+      }),
+    );
+    expect(status).toBe(1);
+    expect(output).toContain("src/app/page.tsx:2 importa com argumento que não é texto fixo");
+  });
+
+  it("import type de admin.ts não conta (não vai para o bundle)", () => {
+    const { status, output } = run(
+      tree({
+        "src/app/page.tsx": `import type { k } from "@/lib/supabase/admin";\nexport type K = typeof k;\nexport default function Page() { return <p>ok</p>; }\n`,
+      }),
+    );
+    expect(output).toContain("[check:secrets] ok");
+    expect(status).toBe(0);
+  });
+
   it("cliente que chega ao admin por outro arquivo", () => {
     const { status, output } = run(
       tree({

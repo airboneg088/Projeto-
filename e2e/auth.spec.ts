@@ -254,9 +254,17 @@ test("login de admin direto na API do Auth fica no audit_log", async ({ request 
     data: { email: USUARIOS.admin.email, password: SENHA_SEED },
   });
   expect(login.status()).toBe(200);
-  const { user } = (await login.json()) as { user: { id: string } };
+  const { user, access_token: accessToken } = (await login.json()) as {
+    user: { id: string };
+    access_token: string;
+  };
+  // A sessão deste login, pelas claims do token que o Auth acabou de emitir
+  const claims = JSON.parse(
+    Buffer.from(accessToken.split(".")[1] ?? "", "base64url").toString("utf8"),
+  ) as { session_id?: string };
+  expect(claims.session_id).toBeTruthy();
 
-  // No máximo um registro por admin por minuto: o desta chamada ou o de um login do mesmo minuto
+  // Um registro por sessão (D102): este login tem o seu, com o método e a sessão
   const desde = new Date(Date.now() - 65_000).toISOString();
   const registros = await request.get(
     `${api}/rest/v1/audit_log?select=action,diff&action=eq.admin_login&actor_id=eq.${user.id}` +
@@ -264,7 +272,11 @@ test("login de admin direto na API do Auth fica no audit_log", async ({ request 
     { headers: { apikey: secret, authorization: `Bearer ${secret}` } },
   );
   expect(registros.status()).toBe(200);
-  const linhas = (await registros.json()) as { action: string; diff: { metodo?: string } }[];
+  const linhas = (await registros.json()) as {
+    action: string;
+    diff: { metodo?: string; sessao?: string };
+  }[];
   expect(linhas.length).toBeGreaterThanOrEqual(1);
   expect(linhas.every((linha) => linha.diff.metodo === "password")).toBe(true);
+  expect(linhas.filter((linha) => linha.diff.sessao === claims.session_id)).toHaveLength(1);
 });

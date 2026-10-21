@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// Confere que segredos não vazam para o código do navegador (pnpm check:secrets). Sem dependências.
+// Confere que segredos não vazam para o código do navegador (pnpm check:secrets). Sem dependências
+// novas: as importações são lidas pelo parser do TypeScript (devDependency do projeto), não por regex.
 //
 // Regras (D71):
 //  1. Nomes de segredo ("service_role", "secret_key", sem diferenciar maiúsculas, com "_", "-" ou
@@ -13,6 +14,11 @@
 //  4. Quem pode importar: env.server.ts só por admin.ts; admin.ts só por arquivos `*.server.ts`
 //     que começam com `import "server-only"`. Assim um Server Component não recebe o segredo para
 //     repassá-lo como prop a um Client Component (o que o mandaria no HTML/RSC).
+//     Regras 3 e 4 valem para toda forma de importar (import/export ... from, import(), require,
+//     import x = require), lidas pelo parser do TypeScript (D103: um regex deixava passar
+//     identificador com $, comentário dentro das chaves e import() com template literal).
+//     import() ou require() com argumento que não é texto fixo é erro em src/ (não dá para saber
+//     o que ele importa).
 //  5. Nenhuma variável NEXT_PUBLIC_* pode ter SECRET ou SERVICE no nome.
 //  6. Se existir build (.next), o valor da chave secreta não pode aparecer em nenhum arquivo dele
 //     (fora .next/cache) e .next/static não pode citar SUPABASE_SECRET_KEY/SUPABASE_SERVICE_ROLE_KEY.
@@ -25,6 +31,8 @@
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, extname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+
+import ts from "typescript";
 
 const args = process.argv.slice(2);
 const rootIdx = args.indexOf("--root");
@@ -136,17 +144,54 @@ for (const file of configFiles) {
 
 // ---------------------------------------------------------------- regras 3 e 4
 
-const IMPORT_RE =
-  /(?:import|export)\s+(?:type\s+)?(?:[\w*{}\s,]+\s+from\s+)?["']([^"']+)["']|import\(\s*["']([^"']+)["']\s*\)|require\(\s*["']([^"']+)["']\s*\)/g;
+const specifierCache = new Map();
 
-function specifiers(text) {
+/**
+ * Módulos importados pelo arquivo, lidos pela árvore sintática do TypeScript: import/export ...
+ * from, import "x", import() e require() com texto fixo, import x = require("x"). `import type` e
+ * `export type` não vão para o bundle e ficam de fora. import()/require() com argumento que não é
+ * texto fixo vira problema (o destino não pode ser conferido).
+ */
+function specifiers(file, text) {
+  if (specifierCache.has(file)) return specifierCache.get(file);
+  const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
   const found = [];
-  for (const match of text.matchAll(IMPORT_RE)) {
-    // `import type` não vai para o bundle.
-    if (/^(?:import|export)\s+type\s/.test(match[0])) continue;
-    const spec = match[1] ?? match[2] ?? match[3];
-    if (spec) found.push(spec);
-  }
+  const literal = (node) =>
+    node && (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node))
+      ? node.text
+      : null;
+  const visit = (node) => {
+    if (ts.isImportDeclaration(node)) {
+      if (!node.importClause?.isTypeOnly) {
+        const spec = literal(node.moduleSpecifier);
+        if (spec) found.push(spec);
+      }
+    } else if (ts.isExportDeclaration(node)) {
+      const spec = node.isTypeOnly ? null : literal(node.moduleSpecifier);
+      if (spec) found.push(spec);
+    } else if (ts.isImportEqualsDeclaration(node)) {
+      if (!node.isTypeOnly && ts.isExternalModuleReference(node.moduleReference)) {
+        const spec = literal(node.moduleReference.expression);
+        if (spec) found.push(spec);
+      }
+    } else if (
+      ts.isCallExpression(node) &&
+      (node.expression.kind === ts.SyntaxKind.ImportKeyword ||
+        (ts.isIdentifier(node.expression) && node.expression.text === "require"))
+    ) {
+      const spec = literal(node.arguments[0]);
+      if (spec) found.push(spec);
+      else {
+        const { line } = source.getLineAndCharacterOfPosition(node.getStart(source));
+        problems.push(
+          `${rel(file)}:${line + 1} importa com argumento que não é texto fixo (${node.getText(source).slice(0, 80)}); escreva o caminho do módulo`,
+        );
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  specifierCache.set(file, found);
   return found;
 }
 
@@ -178,7 +223,7 @@ for (const entry of clientFiles) {
   while (queue.length > 0) {
     const { file, chain } = queue.shift();
     const text = contents.get(file) ?? (existsSync(file) ? readFileSync(file, "utf8") : "");
-    for (const spec of specifiers(text)) {
+    for (const spec of specifiers(file, text)) {
       const target = resolveSpecifier(file, spec);
       if (!target) continue;
       const targetName = rel(target);
@@ -201,7 +246,7 @@ for (const entry of clientFiles) {
 for (const file of codeFiles) {
   const name = rel(file);
   const text = contents.get(file) ?? "";
-  for (const spec of specifiers(text)) {
+  for (const spec of specifiers(file, text)) {
     const target = resolveSpecifier(file, spec);
     if (!target) continue;
     const targetName = withoutExtension(rel(target));

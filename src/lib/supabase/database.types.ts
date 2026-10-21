@@ -81,6 +81,7 @@ export type Database = {
         Row: {
           answered_at: string;
           answered_at_device: string | null;
+          applied_mutation_ids: string[];
           attempt_id: string;
           checked: boolean;
           client_mutation_id: string | null;
@@ -93,6 +94,7 @@ export type Database = {
         Insert: {
           answered_at?: string;
           answered_at_device?: string | null;
+          applied_mutation_ids?: string[];
           attempt_id: string;
           checked?: boolean;
           client_mutation_id?: string | null;
@@ -104,6 +106,7 @@ export type Database = {
         Update: {
           answered_at?: string;
           answered_at_device?: string | null;
+          applied_mutation_ids?: string[];
           attempt_id?: string;
           checked?: boolean;
           client_mutation_id?: string | null;
@@ -969,6 +972,7 @@ export type Database = {
           store_id: string;
           submit_client_mutation_id: string | null;
           submitted_at: string | null;
+          submitted_at_device: string | null;
           task_id: string;
         };
         ComputedFields: never;
@@ -985,6 +989,7 @@ export type Database = {
           store_id: string;
           submit_client_mutation_id?: string | null;
           submitted_at?: string | null;
+          submitted_at_device?: string | null;
           task_id: string;
         };
         Update: {
@@ -1000,6 +1005,7 @@ export type Database = {
           store_id?: string;
           submit_client_mutation_id?: string | null;
           submitted_at?: string | null;
+          submitted_at_device?: string | null;
           task_id?: string;
         };
         Relationships: [
@@ -1515,7 +1521,12 @@ export type Database = {
         Returns: string;
       };
       submit_attempt: {
-        Args: { p_attempt_id: string; p_client_mutation_id?: string; p_note?: string };
+        Args: {
+          p_attempt_id: string;
+          p_client_mutation_id?: string;
+          p_note?: string;
+          p_submitted_at_device?: string;
+        };
         Returns: Database["public"]["Enums"]["task_status"];
       };
       top_failed_items: {

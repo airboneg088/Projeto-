@@ -24,6 +24,24 @@ export function signedUrlTtl(seconds: number = MAX_SIGNED_URL_SECONDS): number {
   return seconds;
 }
 
+const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
+
+/**
+ * Formato exato do caminho em cada bucket (o mesmo das policies de upload e das conferências do
+ * banco, D92). O texto conferido é o texto assinado: com qualquer outro caractere (barra invertida, "..",
+ * "%2e", "?", "#"), o storage-js monta a URL por concatenação e o `fetch` (WHATWG URL) a normaliza
+ * antes de enviar, e a URL assinada com a chave secreta seria de OUTRO objeto.
+ */
+const PATH_FORMAT: Record<StorageBucket, RegExp> = {
+  evidences: new RegExp(`^${UUID}/${UUID}/${UUID}/${UUID}/${UUID}\\.jpg$`),
+  references: new RegExp(`^${UUID}/(?:rede|${UUID})/${UUID}/${UUID}\\.(?:jpg|png|webp)$`),
+};
+
+/** Verdadeiro se o caminho tem exatamente o formato do bucket (só minúsculas, dígitos, "-", "/" e "."). */
+export function isCanonicalStoragePath(bucket: StorageBucket, path: unknown): path is string {
+  return typeof path === "string" && PATH_FORMAT[bucket].test(path);
+}
+
 /** O que o servidor precisa para criar a URL: conferir como o usuário e assinar com a chave secreta. */
 export type SignedUrlDeps = {
   /** Conferência como o usuário logado (RPC `can_read_evidence` / `can_read_reference`). */
@@ -33,8 +51,9 @@ export type SignedUrlDeps = {
 };
 
 /**
- * URL assinada de leitura, ou `null` se o usuário não pode ver o arquivo (ou ele não existe). Só
- * assina depois da conferência; o prazo nunca passa de 5 min.
+ * URL assinada de leitura, ou `null` se o usuário não pode ver o arquivo (ou ele não existe, ou o
+ * caminho não tem o formato exato do bucket). Só assina depois da conferência, e assina o mesmo
+ * texto conferido; o prazo nunca passa de 5 min.
  */
 export async function createSignedReadUrl(
   deps: SignedUrlDeps,
@@ -43,6 +62,8 @@ export async function createSignedReadUrl(
   expiresIn: number = MAX_SIGNED_URL_SECONDS,
 ): Promise<string | null> {
   const ttl = signedUrlTtl(expiresIn);
+  // Caminho fora do formato (pode vir do cliente): nem confere, nem assina
+  if (!isCanonicalStoragePath(bucket, path)) return null;
   if (!(await deps.canRead(bucket, path))) return null;
   return deps.sign(bucket, path, ttl);
 }

@@ -8,7 +8,7 @@ begin;
 \ir helpers/auth.psql
 \ir helpers/fixtures.psql
 
-select plan(7);
+select plan(8);
 
 select tests.create_base_fixture();
 select tests.create_store_activity('p');
@@ -25,6 +25,8 @@ select is(tests.count_rows(format($$ select count(*) from storage.objects
                                      where bucket_id = 'references' and name like %L $$,
                                    '%/' || tests.fx('tpl_p') || '/%')), 0::bigint,
   'admin NÃO descobre o id da rotina da loja P pelo caminho do arquivo');
+select ok(not public.can_read_reference(format('%s/%s/%s/%s.jpg', tests.fx('org_a'), tests.fx('store_p'), tests.fx('tpl_p'), tests.fx('reffile_p'))),
+  'admin NÃO abre a imagem de referência (o servidor não assina a URL para ele)');
 select throws_ok(format(
   $$ insert into storage.objects (bucket_id, name) values ('references', %L) $$,
   format('%s/%s/%s/%s.jpg', tests.fx('org_a'), tests.fx('store_p'), tests.fx('tpl_p'), tests.fx('ref_admin'))),
@@ -34,13 +36,16 @@ select throws_ok(format(
   format('%s/rede/%s/%s.jpg', tests.fx('org_a'), tests.fx('tpl_rede'), tests.fx('ref_admin2'))),
   '42501', null, 'admin NÃO envia imagem de referência da rede');
 
--- Controle: colaborador da loja P lê as imagens da loja P e da rede
+-- Controle: colaborador da loja P abre as imagens da loja P e da rede (pela conferência do
+-- servidor, que cria a signed URL; ninguém lê storage.objects direto, D77)
 select tests.authenticate_as('staff_p1');
-select is(tests.count_rows($$ select count(*) from storage.objects where bucket_id = 'references' $$), 2::bigint,
-  'colaborador P lê as imagens da loja P e da rede');
+select ok(public.can_read_reference(format('%s/%s/%s/%s.jpg', tests.fx('org_a'), tests.fx('store_p'), tests.fx('tpl_p'), tests.fx('reffile_p')))
+          and public.can_read_reference(format('%s/rede/%s/%s.jpg', tests.fx('org_a'), tests.fx('tpl_rede'), tests.fx('ref_rede'))),
+  'colaborador P abre as imagens da loja P e da rede');
 select tests.authenticate_as('owner_a');
-select is(tests.count_rows($$ select count(*) from storage.objects where bucket_id = 'references' $$), 3::bigint,
-  'proprietária lê as imagens de todas as lojas e da rede');
+select ok(public.can_read_reference(format('%s/%s/%s/%s.jpg', tests.fx('org_a'), tests.fx('store_c'), tests.fx('tpl_c'), tests.fx('reffile_c')))
+          and public.can_read_reference(format('%s/rede/%s/%s.jpg', tests.fx('org_a'), tests.fx('tpl_rede'), tests.fx('ref_rede'))),
+  'proprietária abre as imagens de todas as lojas e da rede');
 
 select * from finish();
 rollback;

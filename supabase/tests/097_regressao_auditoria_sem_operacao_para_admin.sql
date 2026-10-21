@@ -31,9 +31,9 @@ select ok(tests.count_rows($$ select count(*) from public.audit_log where table_
   'admin continua lendo a auditoria de cadastros (vínculos)');
 -- Login do admin registrado pelo servidor (chave secreta)
 select tests.authenticate_service_role();
-select is(public.log_admin_login(tests.fx('admin_a'), '127.0.0.1', 'Teste'), true, 'servidor registra o login do admin');
+select is(public.log_admin_login(tests.fx('admin_a'), '127.0.0.1', 'Teste'), true, 'servidor registra o contexto do login do admin');
 select tests.authenticate_as('admin_a');
-select is(tests.count_rows($$ select count(*) from public.audit_log where action = 'admin_login' $$),
+select is(tests.count_rows($$ select count(*) from public.audit_log where action = 'admin_login_context' $$),
   1::bigint, 'admin lê eventos sem tabela (login)');
 
 select tests.authenticate_as('owner_a');

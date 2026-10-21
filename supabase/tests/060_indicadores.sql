@@ -109,7 +109,8 @@ select tests.kpi_task('k3', 'store_p', 'sector_p2', 'staff_p2', 1, false, '2026-
 select tests.kpi_attempt('k3', 1, 'staff_p2', '2026-03-10 18:30+00');
 select tests.kpi_review('k3', 1, null, 'approved', '2026-03-10 18:30+00');
 select tests.walk(tests.fx('k3'), 'in_progress', 'submitted', 'approved');
--- k4 (aguardando aprovação, vencida)
+-- k4 (enviada dentro do prazo e aguardando aprovação; o prazo já venceu: continua
+--     "Aguardando aprovação", não "Atrasada" = venceu sem envio)
 select tests.kpi_task('k4', 'store_p', 'sector_p2', 'staff_p2', 4, true, '2026-03-10 19:00+00', '2026-03-10 21:00+00');
 select tests.kpi_attempt('k4', 1, 'staff_p2', '2026-03-10 20:00+00');
 select tests.walk(tests.fx('k4'), 'in_progress', 'submitted');
@@ -157,7 +158,7 @@ select tests.authenticate_as('owner_a');
 
 -- Período inteiro: 11 previstas (k6 cancelada fica fora)
 --   executadas 8 (k1 k2 k3 k4 k7 k9 k10 k12); aprovadas 5 (k1 k2 k3 k7 k9)
---   atrasadas 4 (k4 k5 k8 k10); pendentes 2 (k11 k12); aguardando 1 (k12)
+--   atrasadas 3 (k5 k8 k10); pendentes 3 (k4 k11 k12); aguardando 2 (k4 k12)
 --   na janela 4/11 = 36.4 (k2 aprovada fora da janela)
 --   1ª tentativa 3/4 = 75.0 (k3 auto fica fora; k2 aprovada na 2ª)
 --   atribuição→envio (20+30+30+60+30+60+60+60)/8 = 43.75 -> 43.8 min
@@ -165,14 +166,15 @@ select tests.authenticate_as('owner_a');
 --   devolvidas 3 (k2 #1, k10 #1, k12 #1); adoção 8/11 = 72.7
 select results_eq(
   $$ select * from public.kpi_summary('2026-03-01', '2099-12-31') $$,
-  $$ values (11, 8, 5, 2, 1, 4, 36.4, 75.0, 43.8, 27.1, 3, 72.7) $$,
+  $$ values (11, 8, 5, 3, 2, 3, 36.4, 75.0, 43.8, 27.1, 3, 72.7) $$,
   'kpi_summary no período inteiro (proprietária)'
 );
 
 -- Só o dia local 10/03: k1 k2 k3 k4 k5 k7 k9 k10 (k7 entra pela virada de fuso; k8 sai)
+--   atrasadas 2 (k5 k10); pendentes 1 = aguardando 1 (k4, enviada a tempo)
 select results_eq(
   $$ select * from public.kpi_summary('2026-03-10', '2026-03-10') $$,
-  $$ values (8, 7, 5, 0, 0, 3, 50.0, 75.0, 41.4, 30.0, 2, 87.5) $$,
+  $$ values (8, 7, 5, 1, 1, 2, 50.0, 75.0, 41.4, 30.0, 2, 87.5) $$,
   'kpi_summary do dia local 10/03 (02:30Z do dia 11 conta no dia 10)'
 );
 
@@ -185,8 +187,8 @@ select results_eq(
 
 select results_eq(
   $$ select * from public.kpi_summary('2026-03-01', '2099-12-31', null, array[tests.fx('sector_p2')]) $$,
-  $$ values (3, 3, 1, 1, 1, 1, 33.3, null::numeric, 50.0, 10.0, 1, 100.0) $$,
-  'kpi_summary filtrado pelo setor P2 (k3 k4 k12)'
+  $$ values (3, 3, 1, 2, 2, 0, 33.3, null::numeric, 50.0, 10.0, 1, 100.0) $$,
+  'kpi_summary filtrado pelo setor P2 (k3 k4 k12; k4 e k12 aguardando, nenhuma atrasada)'
 );
 
 select results_eq(
@@ -203,7 +205,7 @@ select results_eq(
 
 -- RLS: gerente P pede as duas lojas e recebe só a Loja P
 --   previstas 9 (k1 k2 k3 k4 k5 k7 k8 k11 k12); executadas 6; aprovadas 4
---   atrasadas 3 (k4 k5 k8); pendentes 2; aguardando 1
+--   atrasadas 2 (k5 k8); pendentes 3 (k4 k11 k12); aguardando 2 (k4 k12)
 --   janela 3/9 = 33.3; 1ª tentativa 2/3 = 66.7
 --   atribuição→envio (20+30+30+60+30+60)/6 = 38.3; revisão (30+30+30+10+10)/5 = 22.0
 --   devolvidas 2; adoção 6/9 = 66.7
@@ -211,7 +213,7 @@ select tests.authenticate_as('manager_p');
 select results_eq(
   format($$ select * from public.kpi_summary('2026-03-01', '2099-12-31', array[%L, %L]::uuid[]) $$,
          tests.fx('store_p'), tests.fx('store_c')),
-  $$ values (9, 6, 4, 2, 1, 3, 33.3, 66.7, 38.3, 22.0, 2, 66.7) $$,
+  $$ values (9, 6, 4, 3, 2, 2, 33.3, 66.7, 38.3, 22.0, 2, 66.7) $$,
   'gerente P pede todas as lojas e recebe só os números da Loja P (RLS)'
 );
 
@@ -224,6 +226,8 @@ select results_eq(
 
 -- =============================================================================
 -- weighted_scores: nota = 100 × Σ peso aprovadas ÷ Σ peso
+-- (colunas: group_id, group_name, store_id, volume, peso_total, nota,
+--  criticos_reprovados; store_id = loja do grupo, nulo por pessoa)
 -- =============================================================================
 select tests.authenticate_as('owner_a');
 
@@ -232,7 +236,8 @@ select tests.authenticate_as('owner_a');
 -- Loja C: k9 3 k10 2 = 5; aprovada 3 -> 60.0; críticos: k10 = 1
 select set_eq(
   $$ select * from public.weighted_scores('2026-03-01', '2099-12-31', 'store') $$,
-  format($$ values (%L::uuid, 'Loja P Teste'::text, 9, 25, 36.0, 2), (%L::uuid, 'Loja C Teste'::text, 2, 5, 60.0, 1) $$,
+  format($$ values (%1$L::uuid, 'Loja P Teste'::text, %1$L::uuid, 9, 25, 36.0, 2),
+                   (%2$L::uuid, 'Loja C Teste'::text, %2$L::uuid, 2, 5, 60.0, 1) $$,
          tests.fx('store_p'), tests.fx('store_c')),
   'weighted_scores por loja'
 );
@@ -245,10 +250,10 @@ select set_eq(
 select set_eq(
   $$ select * from public.weighted_scores('2026-03-01', '2099-12-31', 'person') $$,
   format(
-    $$ values (%L::uuid, '[TESTE] Colaborador P1'::text, 5, 13, 61.5, 1),
-              (%L::uuid, '[TESTE] Colaborador P2'::text, 3, 7, 14.3, 1),
-              (%L::uuid, '[TESTE] Colaborador C1'::text, 2, 5, 60.0, 1),
-              (null::uuid, 'Sem responsável'::text, 1, 5, 0.0, 0) $$,
+    $$ values (%L::uuid, '[TESTE] Colaborador P1'::text, null::uuid, 5, 13, 61.5, 1),
+              (%L::uuid, '[TESTE] Colaborador P2'::text, null::uuid, 3, 7, 14.3, 1),
+              (%L::uuid, '[TESTE] Colaborador C1'::text, null::uuid, 2, 5, 60.0, 1),
+              (null::uuid, 'Sem responsável'::text, null::uuid, 1, 5, 0.0, 0) $$,
     tests.fx('staff_p1'), tests.fx('staff_p2'), tests.fx('staff_c1')
   ),
   'weighted_scores por pessoa (sempre com volume e peso ao lado da nota)'
@@ -260,17 +265,18 @@ select set_eq(
 select set_eq(
   $$ select * from public.weighted_scores('2026-03-01', '2099-12-31', 'sector') $$,
   format(
-    $$ values (%L::uuid, 'Setor P1'::text, 6, 18, 44.4, 1),
-              (%L::uuid, 'Setor P2'::text, 3, 7, 14.3, 1),
-              (%L::uuid, 'Setor C1'::text, 2, 5, 60.0, 1) $$,
-    tests.fx('sector_p1'), tests.fx('sector_p2'), tests.fx('sector_c1')
+    $$ values (%1$L::uuid, 'Loja P Teste · Setor P1'::text, %4$L::uuid, 6, 18, 44.4, 1),
+              (%2$L::uuid, 'Loja P Teste · Setor P2'::text, %4$L::uuid, 3, 7, 14.3, 1),
+              (%3$L::uuid, 'Loja C Teste · Setor C1'::text, %5$L::uuid, 2, 5, 60.0, 1) $$,
+    tests.fx('sector_p1'), tests.fx('sector_p2'), tests.fx('sector_c1'), tests.fx('store_p'), tests.fx('store_c')
   ),
-  'weighted_scores por setor'
+  'weighted_scores por setor (o nome leva a loja; store_id da loja do setor)'
 );
 
 select set_eq(
   $$ select * from public.weighted_scores('2026-03-10', '2026-03-10', 'store') $$,
-  format($$ values (%L::uuid, 'Loja P Teste'::text, 6, 18, 50.0, 1), (%L::uuid, 'Loja C Teste'::text, 2, 5, 60.0, 1) $$,
+  format($$ values (%1$L::uuid, 'Loja P Teste'::text, %1$L::uuid, 6, 18, 50.0, 1),
+                   (%2$L::uuid, 'Loja C Teste'::text, %2$L::uuid, 2, 5, 60.0, 1) $$,
          tests.fx('store_p'), tests.fx('store_c')),
   'weighted_scores por loja no dia local 10/03 (P: k1 k2 k3 k4 k5 k7)'
 );
@@ -283,7 +289,7 @@ select throws_ok(
 select tests.authenticate_as('manager_p');
 select set_eq(
   $$ select * from public.weighted_scores('2026-03-01', '2099-12-31', 'store') $$,
-  format($$ values (%L::uuid, 'Loja P Teste'::text, 9, 25, 36.0, 2) $$, tests.fx('store_p')),
+  format($$ values (%1$L::uuid, 'Loja P Teste'::text, %1$L::uuid, 9, 25, 36.0, 2) $$, tests.fx('store_p')),
   'gerente P só vê a nota da própria loja (RLS)'
 );
 

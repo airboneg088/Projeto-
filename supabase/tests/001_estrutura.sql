@@ -107,7 +107,7 @@ select set_eq(
   array[
     'start_attempt', 'answer_item', 'register_evidence', 'submit_attempt', 'review_attempt',
     'cancel_task', 'log_event', 'log_admin_login', 'admin_read_tasks', 'set_profile_status',
-    'kpi_summary', 'weighted_scores', 'top_failed_items'
+    'kpi_summary', 'weighted_scores', 'top_failed_items', 'can_read_evidence', 'can_read_reference'
   ],
   'public expõe só as RPCs e os indicadores previstos'
 );
@@ -225,11 +225,8 @@ select set_eq(
     from pg_policies
     where schemaname = 'storage' and tablename = 'objects'
   $$,
-  array[
-    'evidences_insert_performer:INSERT', 'evidences_select_allowed:SELECT',
-    'references_insert_manager:INSERT', 'references_select_member:SELECT'
-  ],
-  'storage.objects: só policies de INSERT e SELECT (sem UPDATE/DELETE)'
+  array['evidences_insert_performer:INSERT', 'references_insert_manager:INSERT'],
+  'storage.objects: só policies de INSERT (sem SELECT, UPDATE, DELETE: leitura só por signed URL do servidor, D77)'
 );
 
 -- Perfil nasce com o usuário do Auth -----------------------------------------

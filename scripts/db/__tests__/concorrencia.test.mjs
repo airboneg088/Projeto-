@@ -3,7 +3,10 @@
  *   - R1-FI-06: foto, resposta e envio da mesma tentativa ao mesmo tempo não geram deadlock;
  *   - R2-FUNC-03: o mesmo registro de foto (client_mutation_id) chegando duas vezes ao mesmo
  *     tempo devolve a mesma evidência, não 'duplicate_photo';
- *   - R2-FUNC-04: quem deixou de ser o responsável enquanto esperava a trava não inicia a tarefa.
+ *   - R2-FUNC-04: quem deixou de ser o responsável enquanto esperava a trava não inicia a tarefa;
+ *   - R2-REGRAS-S6: nem envia (a tentativa dele é encerrada sem envio e o novo responsável inicia);
+ *   - R3-FUNCOES-03: a reatribuição numa transação que começou antes de a tentativa ser iniciada
+ *     (inclusive um PATCH em lote que esperou trava) encerra a tentativa com o relógio real.
  *
  * Os cenários precisam de dados commitados e de várias sessões (dblink), então não cabem na
  * suíte pgTAP (cada arquivo roda numa transação desfeita no fim). Aqui o teste cria um banco
@@ -43,6 +46,15 @@ const SCENARIOS = [
   {
     file: "inicio-depois-de-reatribuir.sql",
     title: "quem deixou de ser o responsável enquanto esperava a trava não inicia a tarefa",
+  },
+  {
+    file: "envio-depois-de-reatribuir.sql",
+    title: "quem deixou de ser o responsável enquanto esperava a trava não envia a tarefa",
+  },
+  {
+    file: "passagem-em-transacao-antiga.sql",
+    title:
+      "reatribuição numa transação iniciada antes da tentativa encerra a tentativa (não falha)",
   },
 ];
 

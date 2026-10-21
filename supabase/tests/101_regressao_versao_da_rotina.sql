@@ -14,8 +14,7 @@ select plan(9);
 
 select tests.create_base_fixture();
 select tests.create_store_activity('p');
--- Rotina criada "ontem" (fora da transação de criação)
-update public.task_templates set created_at = now() - interval '1 day' where id = tests.fx('tpl_p');
+-- A rotina já foi usada (task_p cita tpl_p): editar sobe a versão
 
 select tests.authenticate_as('manager_p');
 -- Edição legítima: versão 1 -> 2
@@ -24,7 +23,7 @@ update public.task_templates set title = 'Rotina p (revisada)' where id = tests.
 select throws_ok($$ update public.task_templates set version = 1 where id = tests.fx('tpl_p') $$,
   '42501', null, 'gerente NÃO reescreve task_templates.version');
 select throws_ok($$ update public.task_templates set created_at = '2999-01-01' where id = tests.fx('tpl_p') $$,
-  '42501', null, 'gerente NÃO altera task_templates.created_at (desligaria o incremento por itens)');
+  '42501', null, 'gerente NÃO altera task_templates.created_at (coluna do sistema)');
 select throws_ok($$ update public.task_templates set created_by = tests.fx('owner_a') where id = tests.fx('tpl_p') $$,
   '42501', null, 'gerente NÃO forja o autor da rotina');
 

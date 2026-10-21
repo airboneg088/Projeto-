@@ -3,13 +3,15 @@
 --   evidences  {org}/{loja}/{tarefa}/{tentativa}/{uuid}.jpg
 --   references {org}/{loja ou "rede"}/{rotina}/{uuid}.{jpg|png|webp}
 -- Inclui truques de caminho: org errada, "..", segmentos a mais/a menos,
--- tentativa de outra pessoa, tentativa enviada.
+-- tentativa de outra pessoa, tentativa enviada. Leitura: ninguém lê
+-- storage.objects direto (D77); a regra de leitura é public.can_read_evidence /
+-- can_read_reference, que o servidor confere antes de assinar a URL de até 5 min.
 -- =============================================================================
 begin;
 \ir helpers/auth.psql
 \ir helpers/fixtures.psql
 
-select plan(55);
+select plan(59);
 
 select tests.create_base_fixture();
 select tests.create_task('t1', 'store_p', 'sector_p1', 'staff_p1', p_items => 1);
@@ -106,40 +108,70 @@ insert into storage.objects (bucket_id, name)
 select 'evidences', unnest(array[a2, a3, ac]) from paths;
 
 -- =============================================================================
--- evidences: SELECT
+-- evidences: leitura (D77). Ninguém lê storage.objects direto (com SELECT, o próprio
+-- usuário assinaria URLs com o prazo que quisesse, válidas depois de perder o acesso);
+-- o servidor confere public.can_read_evidence como o usuário e cria a signed URL de
+-- até 5 min com a chave secreta.
 -- =============================================================================
+create function tests.direct_objects(p_who text, p_bucket text)
+returns bigint
+language plpgsql
+as $$
+declare
+  v_count bigint;
+begin
+  perform tests.authenticate_as(p_who);
+  select count(*) into v_count from storage.objects where bucket_id = p_bucket;
+  perform tests.reset_role();
+  return v_count;
+end;
+$$;
+grant execute on function tests.direct_objects(text, text) to public;
+
+select is(
+  (select sum(tests.direct_objects(w, 'evidences'))
+   from unnest(array['staff_p1', 'staff_p2', 'staff_c1', 'manager_p', 'manager_c', 'owner_a', 'admin_a', 'owner_b']) as w),
+  0::numeric,
+  'evidences: nenhum papel lê storage.objects direto (nem o executor, nem o gerente, nem a proprietária)');
+
 select tests.authenticate_as('staff_p1');
-select is(tests.count_rows($$ select count(*) from storage.objects where bucket_id = 'evidences' $$), 2::bigint,
-  'evidences: executor P1 vê as próprias fotos (tentativa aberta e enviada)');
+select ok(public.can_read_evidence((select a1 from paths)) and public.can_read_evidence((select a3 from paths)),
+  'evidences: executor P1 abre as próprias fotos (tentativa aberta e enviada)');
+select ok(not public.can_read_evidence((select a2 from paths)),
+  'evidences: executor P1 não abre a foto de outra pessoa');
 select tests.authenticate_as('staff_p2');
-select is(tests.count_rows($$ select count(*) from storage.objects where bucket_id = 'evidences' $$), 1::bigint,
-  'evidences: colaborador P2 vê só a própria foto');
+select ok(public.can_read_evidence((select a2 from paths)) and not public.can_read_evidence((select a1 from paths)),
+  'evidences: colaborador P2 abre só a própria foto');
 select tests.authenticate_as('staff_c1');
-select is(tests.count_rows($$ select count(*) from storage.objects where bucket_id = 'evidences' $$), 1::bigint,
-  'evidences: colaborador C1 vê só a própria foto');
+select ok(public.can_read_evidence((select ac from paths)) and not public.can_read_evidence((select a1 from paths)),
+  'evidences: colaborador C1 abre só a própria foto');
 select tests.authenticate_as('manager_p');
-select is(tests.count_rows($$ select count(*) from storage.objects where bucket_id = 'evidences' $$), 3::bigint,
-  'evidences: gerente P vê as fotos da loja P');
-select is(tests.count_rows(format($$ select count(*) from storage.objects where name = %L $$, (select ac from paths))), 0::bigint,
-  'evidences: gerente P não vê foto da loja C');
+select ok(public.can_read_evidence((select a1 from paths)) and public.can_read_evidence((select a2 from paths))
+          and public.can_read_evidence((select a3 from paths)),
+  'evidences: gerente P abre as fotos da loja P');
+select ok(not public.can_read_evidence((select ac from paths)),
+  'evidences: gerente P não abre foto da loja C');
 select tests.authenticate_as('manager_c');
-select is(tests.count_rows($$ select count(*) from storage.objects where bucket_id = 'evidences' $$), 1::bigint,
-  'evidences: gerente C vê só a foto da loja C');
+select ok(public.can_read_evidence((select ac from paths)) and not public.can_read_evidence((select a1 from paths)),
+  'evidences: gerente C abre só a foto da loja C');
 select tests.authenticate_as('owner_a');
-select is(tests.count_rows($$ select count(*) from storage.objects where bucket_id = 'evidences' $$), 4::bigint,
-  'evidences: proprietária vê as fotos da organização');
+select ok((select bool_and(public.can_read_evidence(x)) from paths, unnest(array[a1, a2, a3, ac]) as x),
+  'evidences: proprietária abre as fotos da organização');
 select tests.authenticate_as('admin_a');
-select is(tests.count_rows($$ select count(*) from storage.objects where bucket_id = 'evidences' $$), 0::bigint,
-  'evidences: admin não lê fotos operacionais');
+select ok((select not bool_or(public.can_read_evidence(x)) from paths, unnest(array[a1, a2, a3, ac]) as x),
+  'evidences: admin não abre fotos operacionais');
 select tests.authenticate_as('owner_b');
-select is(tests.count_rows($$ select count(*) from storage.objects where bucket_id = 'evidences' $$), 0::bigint,
-  'evidences: dono de outra organização não vê nada');
+select ok((select not bool_or(public.can_read_evidence(x)) from paths, unnest(array[a1, a2, a3, ac]) as x),
+  'evidences: dono de outra organização não abre nada');
+select tests.authenticate_anon();
+select throws_ok(format($$ select public.can_read_evidence(%L) $$, (select a1 from paths)), '42501', null,
+  'evidences: sem login, a conferência nem roda');
 
 select tests.reset_role();
 update public.memberships set ends_at = now() where id = tests.fx('m_staff_p1');
 select tests.authenticate_as('staff_p1');
-select is(tests.count_rows($$ select count(*) from storage.objects where bucket_id = 'evidences' $$), 0::bigint,
-  'evidences: executor com vínculo encerrado não vê mais as fotos');
+select ok(not public.can_read_evidence((select a1 from paths)),
+  'evidences: executor com vínculo encerrado não abre mais as fotos');
 select throws_ok(
   format($$ insert into storage.objects (bucket_id, name) values ('evidences', %L) $$,
          regexp_replace((select a1 from paths), '[^/]+\.jpg$', tests.fx('depois') || '.jpg')),
@@ -202,23 +234,37 @@ select is(
 from (select * from refs order by ord) as r;                                                     -- 17
 
 -- =============================================================================
--- references: SELECT (aceitos acima: P x3, rede x1, C x1)
+-- references: leitura (aceitos acima: P x3, rede x1, C x1), também só pelo servidor (D77)
 -- =============================================================================
+create temporary table ref_paths as
+select format('%s/%s/%s/%s.jpg', x.org_a, x.store_p, tests.fx('tpl1'), tests.fx('r1')) as p1,
+       format('%s/rede/%s/%s.jpg', x.org_a, tests.fx('tpl2'), tests.fx('r11')) as rede,
+       format('%s/%s/%s/%s.jpg', x.org_a, x.store_c, tests.fx('tpl2'), tests.fx('r12')) as c1
+from paths x;
+grant select on ref_paths to public;
+
+select is(
+  (select sum(tests.direct_objects(w, 'references'))
+   from unnest(array['staff_p1', 'manager_c', 'owner_a', 'admin_a', 'owner_b']) as w),
+  0::numeric,
+  'references: nenhum papel lê storage.objects direto');
 select tests.authenticate_as('staff_p1');
-select is(tests.count_rows($$ select count(*) from storage.objects where bucket_id = 'references' $$), 4::bigint,
-  'references: colaborador P vê as imagens da loja P e da rede');
+select ok(public.can_read_reference((select p1 from ref_paths)) and public.can_read_reference((select rede from ref_paths))
+          and not public.can_read_reference((select c1 from ref_paths)),
+  'references: colaborador P abre as imagens da loja P e da rede (não as da loja C)');
 select tests.authenticate_as('manager_c');
-select is(tests.count_rows($$ select count(*) from storage.objects where bucket_id = 'references' $$), 2::bigint,
-  'references: gerente C vê as imagens da loja C e da rede (não as da loja P)');
+select ok(public.can_read_reference((select c1 from ref_paths)) and public.can_read_reference((select rede from ref_paths))
+          and not public.can_read_reference((select p1 from ref_paths)),
+  'references: gerente C abre as imagens da loja C e da rede (não as da loja P)');
 select tests.authenticate_as('admin_a');
-select is(tests.count_rows($$ select count(*) from storage.objects where bucket_id = 'references' $$), 0::bigint,
-  'references: admin NÃO lista nem lê imagens de referência (D15: conteúdo de rotina só por função auditada)');
+select ok((select not bool_or(public.can_read_reference(x)) from ref_paths, unnest(array[p1, rede, c1]) as x),
+  'references: admin NÃO abre imagens de referência (D15: conteúdo de rotina só por função auditada)');
 select tests.authenticate_as('owner_a');
-select is(tests.count_rows($$ select count(*) from storage.objects where bucket_id = 'references' $$), 5::bigint,
-  'references: proprietária vê todas as imagens da organização');
+select ok((select bool_and(public.can_read_reference(x)) from ref_paths, unnest(array[p1, rede, c1]) as x),
+  'references: proprietária abre todas as imagens da organização');
 select tests.authenticate_as('owner_b');
-select is(tests.count_rows($$ select count(*) from storage.objects where bucket_id = 'references' $$), 0::bigint,
-  'references: dono de outra organização não vê nada');
+select ok((select not bool_or(public.can_read_reference(x)) from ref_paths, unnest(array[p1, rede, c1]) as x),
+  'references: dono de outra organização não abre nada');
 
 -- =============================================================================
 -- Sem UPDATE/DELETE em storage.objects pela API

@@ -3,9 +3,10 @@
 -- arbitrário no audit_log (append-only, nunca limpo).
 --   export (log_event, gerente/proprietária): objeto de até 2 KB, só com as
 --     chaves formato, escopo, filtros, periodo, linhas e valores simples.
---   admin_login (log_admin_login): só a chave secreta grava (o servidor, logo
---     depois do login); ip só se for endereço válido, user_agent cortado e no
---     máximo um registro por admin por minuto.
+--   admin_login_context (log_admin_login): só a chave secreta grava (o servidor,
+--     logo depois do login); ip só se for endereço válido, user_agent cortado e
+--     no máximo um registro por admin por minuto. (O login em si, admin_login,
+--     é gravado pelo Auth: 139_regressao_login_de_admin_pelo_auth.sql.)
 -- =============================================================================
 begin;
 \ir helpers/auth.psql
@@ -52,12 +53,12 @@ select is(public.log_admin_login(tests.fx('admin_a'), '127.0.0.1', 'Teste'), fal
 
 select tests.reset_role();
 select results_eq(
-  $$ select diff ? 'ip', char_length(diff ->> 'user_agent') from public.audit_log where action = 'admin_login' $$,
+  $$ select diff ? 'ip', char_length(diff ->> 'user_agent') from public.audit_log where action = 'admin_login_context' $$,
   $$ values (false, 300) $$,
   'ip inválido não é gravado e o user_agent é cortado em 300 caracteres'
 );
 select is(
-  (select count(*) from public.audit_log where action in ('export', 'admin_login')),
+  (select count(*) from public.audit_log where action in ('export', 'admin_login_context')),
   2::bigint,
   'só os 2 eventos válidos foram gravados'
 );

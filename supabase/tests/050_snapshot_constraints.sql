@@ -13,7 +13,7 @@ select plan(46);
 
 select tests.create_base_fixture();
 
--- Rotina da rede criada "ontem" (para as edições de hoje contarem como edição)
+-- Rotina da rede (a versão só sobe com edições feitas depois que alguma tarefa a usou)
 create temporary table ref as
   select format('%s/rede/%s/%s.jpg', tests.fx('org_a'), tests.fx('tpl'), tests.fx('ref_abertura')) as path;
 grant select on ref to public;
@@ -24,7 +24,6 @@ values (tests.fx('tpl'), tests.fx('org_a'), null, 'Abertura', 'Siga a ordem', (s
 insert into public.template_items (id, template_id, position, text, is_critical, requires_photo, weight)
 values (tests.fx('tpl_i1'), tests.fx('tpl'), 1, 'Desligar alarme', true, false, 5),
        (tests.fx('tpl_i2'), tests.fx('tpl'), 2, 'Acender luzes', false, true, 2);
-update public.task_templates set created_at = now() - interval '1 day' where id = tests.fx('tpl');
 insert into public.schedules (id, store_id, template_id, sector_id, window_start, window_end)
 values (tests.fx('sch'), tests.fx('store_p'), tests.fx('tpl'), tests.fx('sector_p1'), '07:30', '08:15');
 
@@ -32,7 +31,7 @@ values (tests.fx('sch'), tests.fx('store_p'), tests.fx('tpl'), tests.fx('sector_
 select is(
   (select version from public.task_templates where id = tests.fx('tpl')),
   1,
-  'itens gravados junto com a criação da rotina não contam como edição (versão 1)'
+  'montar a rotina e os itens antes de qualquer tarefa não conta como edição (versão 1)'
 );
 select ok(
   private.instantiate_task(tests.fx('tpl'), tests.fx('store_p'), tests.fx('sector_p1'), null,

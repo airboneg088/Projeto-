@@ -11,8 +11,9 @@ begin;
 select plan(9);
 
 select tests.create_base_fixture();
+-- Foto exigida no item (a foto geral da tarefa é outro teste: 133)
 select tests.create_task('t_sem_foto', 'store_p', 'sector_p1', 'staff_p1',
-                         p_requires_photo => true, p_items => 1, p_item_photo => true);
+                         p_items => 1, p_item_photo => true);
 
 select tests.authenticate_as('staff_p1');
 select ok(public.start_attempt(tests.fx('t_sem_foto'), null) is not null, 'colaborador inicia a tarefa');

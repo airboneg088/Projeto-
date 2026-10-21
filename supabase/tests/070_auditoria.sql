@@ -8,7 +8,7 @@ begin;
 \ir helpers/auth.psql
 \ir helpers/fixtures.psql
 
-select plan(34);
+select plan(35);
 
 select tests.create_base_fixture();
 select tests.create_task('t_cancelar', 'store_p', 'sector_p1', 'staff_p1');
@@ -76,7 +76,10 @@ select is(
 );
 
 -- Edição de rotina ------------------------------------------------------------
-update public.task_templates set created_at = now() - interval '1 day' where id = tests.fx('tpl_p');
+-- (rotina já usada numa tarefa: a edição sobe a versão; antes do 1º uso ela está em montagem)
+select ok(private.instantiate_task(tests.fx('tpl_p'), tests.fx('store_p'), tests.fx('sector_p1'), null,
+                                   now() + interval '60 days', now() + interval '61 days') is not null,
+  'tarefa gerada da rotina (a rotina sai da montagem)');
 select tests.authenticate_as('manager_p');
 select is(tests.affected_rows($$ update public.task_templates set title = 'Rotina revisada' where id = tests.fx('tpl_p') $$), 1,
   'gerente edita a rotina da sua loja');
@@ -157,9 +160,9 @@ select throws_ok($$ select public.log_event('export') $$, 'P0001', 'forbidden', 
 
 select tests.authenticate_as('owner_a');
 select results_eq(
-  $$ select action, actor_id, diff from public.audit_log where action in ('admin_login', 'export') order by id $$,
+  $$ select action, actor_id, diff from public.audit_log where action in ('admin_login_context', 'export') order by id $$,
   format(
-    $$ values ('admin_login'::text, %L::uuid, '{"ip": "127.0.0.1"}'::jsonb),
+    $$ values ('admin_login_context'::text, %L::uuid, '{"ip": "127.0.0.1"}'::jsonb),
               ('export'::text, %L::uuid, '{"formato": "xlsx", "linhas": 120}'::jsonb),
               ('export'::text, %L::uuid, '{"formato": "csv"}'::jsonb) $$,
     tests.fx('admin_a'), tests.fx('manager_p'), tests.fx('owner_a')

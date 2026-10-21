@@ -1,8 +1,9 @@
 -- =============================================================================
 -- 117 · Regressão R2-FUNC-06: o registro de login de admin não fica aberto ao
--- navegador. log_event não aceita mais admin_login; o login é gravado por
--- log_admin_login, que só a chave secreta (o servidor) executa, com valores de
--- texto curtos e no máximo um registro por admin por minuto.
+-- navegador. log_event não aceita mais admin_login; o contexto do login (ip,
+-- user_agent) é gravado por log_admin_login ('admin_login_context'), que só a
+-- chave secreta (o servidor) executa, com valores de texto curtos e no máximo um
+-- registro por admin por minuto. O login em si é gravado pelo Auth (D79, teste 139).
 -- =============================================================================
 begin;
 \ir helpers/auth.psql
@@ -37,10 +38,10 @@ select is(
 
 select tests.reset_role();
 select cmp_ok(
-  (select count(*) from public.audit_log, marca where id > marca.last_id and action = 'admin_login'),
+  (select count(*) from public.audit_log, marca where id > marca.last_id and action = 'admin_login_context'),
   '<', 10::bigint, '500 chamadas seguidas não viram 500 registros de login eternos');
 select results_eq(
-  $$ select actor_id, diff from public.audit_log where action = 'admin_login' $$,
+  $$ select actor_id, diff from public.audit_log where action = 'admin_login_context' $$,
   format($$ values (%L::uuid, '{"ip": "198.51.100.7", "user_agent": "Navegador"}'::jsonb) $$, tests.fx('admin_a')),
   'o registro tem o autor real e só ip e user_agent');
 

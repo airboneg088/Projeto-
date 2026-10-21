@@ -18,7 +18,6 @@ select tests.create_task('t_foto', 'store_p', 'sector_p1', 'staff_p1', p_require
 select tests.create_task('t_nota', 'store_p', 'sector_p1', 'staff_p1', p_requires_note => true, p_items => 1);
 select tests.create_task('t_auto', 'store_p', 'sector_p1', 'staff_p1', p_requires_approval => false, p_items => 1);
 select tests.create_task('t_reprova', 'store_p', 'sector_p1', 'staff_p1');
-select tests.create_task('t_self', 'store_p', 'sector_p1', 'manager_p', p_items => 1);
 select tests.create_task('t_cancel', 'store_p', 'sector_p1', 'staff_p1', p_items => 1);
 select tests.create_task('t_cancel_aberta', 'store_p', 'sector_p1', 'staff_p1', p_items => 1);
 select tests.create_task('t_dup_c', 'store_c', 'sector_c1', 'staff_c1', p_items => 1);
@@ -293,6 +292,8 @@ select results_eq(
 select tests.reset_role();
 insert into public.memberships (profile_id, organization_id, store_id, sector_id, role, starts_at)
 values (tests.fx('manager_p'), tests.fx('org_a'), tests.fx('store_p'), tests.fx('sector_p1'), 'staff', now() - interval '1 day');
+-- Responsável precisa ser colaborador ativo da loja (D86): o gerente também tem vínculo de colaborador
+select tests.create_task('t_self', 'store_p', 'sector_p1', 'manager_p', p_items => 1);
 
 select tests.authenticate_as('manager_p');
 select public.start_attempt(tests.fx('t_self'), null);

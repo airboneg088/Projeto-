@@ -14,7 +14,7 @@ begin;
 \ir helpers/auth.psql
 \ir helpers/fixtures.psql
 
-select plan(195);
+select plan(197);
 
 select tests.create_base_fixture();
 select tests.create_store_activity('p');
@@ -70,9 +70,20 @@ from (
   where store_key = 'p'
     and tbl in ('stores', 'store_settings', 'sectors', 'memberships', 'task_templates', 'schedules',
                 'tasks', 'task_items', 'task_attempts', 'attempt_item_answers', 'evidences', 'reviews',
-                'review_item_flags', 'action_plans', 'storage.objects (evidences)', 'storage.objects (references)')
+                'review_item_flags', 'action_plans')
   order by ord
-) as p;                                                                                          -- 16
+) as p;                                                                                          -- 14
+
+-- Storage: ninguém lê storage.objects direto (D77); a leitura da própria loja passa pela
+-- conferência que o servidor faz antes de criar a signed URL de até 5 min
+select ok(public.can_read_evidence(format('%s/%s/%s/%s/%s.jpg', tests.fx('org_a'), tests.fx('store_p'), tests.fx('task_p'), tests.fx('att_p'), tests.fx('evfile_p'))),
+  'gerente P pode abrir (signed URL do servidor) a foto da própria loja');
+select ok(public.can_read_reference(format('%s/%s/%s/%s.jpg', tests.fx('org_a'), tests.fx('store_p'), tests.fx('tpl_p'), tests.fx('reffile_p'))),
+  'gerente P pode abrir (signed URL do servidor) a imagem de referência da própria loja');
+select ok(not public.can_read_evidence(format('%s/%s/%s/%s/%s.jpg', tests.fx('org_a'), tests.fx('store_c'), tests.fx('task_c'), tests.fx('att_c'), tests.fx('evfile_c'))),
+  'gerente P não abre a foto da loja C');
+select ok(not public.can_read_reference(format('%s/%s/%s/%s.jpg', tests.fx('org_a'), tests.fx('store_c'), tests.fx('tpl_c'), tests.fx('reffile_c'))),
+  'gerente P não abre a imagem de referência da loja C');
 
 -- 2. Gerente P não escreve na loja C (DML e RPC) -------------------------------
 select throws_ok(

@@ -73,3 +73,34 @@ test("/login carrega sem violação de CSP no navegador", async ({ page }) => {
 
   expect(problems).toEqual([]);
 });
+
+// R2-APP-11: caminhos de um segmento com extensão pulavam o proxy e o 404 em HTML saía sem CSP.
+for (const path of [
+  "/nao-existe",
+  "/nao-existe.js",
+  "/robots.txt",
+  "/sitemap.xml",
+  "/favicon.ico",
+  "/manifest.webmanifest",
+  "/gerente.css",
+  "/x.map",
+  "/fonte.woff2",
+  // R3-APP-07: a exclusão de /_next/image não era ancorada e levava junto qualquer prefixo.
+  "/_next/imagex",
+  "/_next/image-foo/bar",
+  "/_next/imagens/logo.png",
+  "/_next/image%2F..%2Flogin",
+]) {
+  test(`404 de ${path} também tem CSP e cabeçalhos de segurança`, async ({ request }) => {
+    const response = await request.get(path);
+    expect(response.status()).toBe(404);
+    expectSecurityHeaders(response);
+  });
+}
+
+test("/icon.svg (arquivo real fora do proxy) continua servido", async ({ request }) => {
+  const response = await request.get("/icon.svg");
+  expect(response.status()).toBe(200);
+  expect(response.headers()["content-type"]).toContain("image/svg+xml");
+  expect(response.headers()["x-content-type-options"]).toBe("nosniff");
+});

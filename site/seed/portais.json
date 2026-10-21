@@ -1,0 +1,113 @@
+{
+ "primavera": {
+  "funcionarios": {
+   "f_pri1": {
+    "nome": "Ana (exemplo)",
+    "funcao": "Salão de vendas",
+    "ativo": true,
+    "criadoEm": "2026-10-21T12:00:00.000Z"
+   },
+   "f_pri2": {
+    "nome": "Bruno (exemplo)",
+    "funcao": "Estoque",
+    "ativo": true,
+    "criadoEm": "2026-10-21T12:00:00.000Z"
+   },
+   "f_pri3": {
+    "nome": "Carla (exemplo)",
+    "funcao": "Caixa",
+    "ativo": true,
+    "criadoEm": "2026-10-21T12:00:00.000Z"
+   }
+  },
+  "padrao": {
+   "abertura": "f_pri1",
+   "salao": "f_pri1",
+   "precificacao": "f_pri1",
+   "vitrine_mes": "f_pri1",
+   "extintores": "f_pri1",
+   "reposicao": "f_pri2",
+   "estoque": "f_pri2",
+   "limpeza_pesada": "f_pri2",
+   "inventario": "f_pri2",
+   "caixa": "f_pri3",
+   "limpeza": "f_pri3",
+   "fechamento": "f_pri3"
+  },
+  "pinHash": null
+ },
+ "castro": {
+  "funcionarios": {
+   "f_cas1": {
+    "nome": "Diego (exemplo)",
+    "funcao": "Salão de vendas",
+    "ativo": true,
+    "criadoEm": "2026-10-21T12:00:00.000Z"
+   },
+   "f_cas2": {
+    "nome": "Elisa (exemplo)",
+    "funcao": "Estoque",
+    "ativo": true,
+    "criadoEm": "2026-10-21T12:00:00.000Z"
+   },
+   "f_cas3": {
+    "nome": "Fábio (exemplo)",
+    "funcao": "Caixa",
+    "ativo": true,
+    "criadoEm": "2026-10-21T12:00:00.000Z"
+   }
+  },
+  "padrao": {
+   "abertura": "f_cas1",
+   "salao": "f_cas1",
+   "precificacao": "f_cas1",
+   "vitrine_mes": "f_cas1",
+   "extintores": "f_cas1",
+   "reposicao": "f_cas2",
+   "estoque": "f_cas2",
+   "limpeza_pesada": "f_cas2",
+   "inventario": "f_cas2",
+   "caixa": "f_cas3",
+   "limpeza": "f_cas3",
+   "fechamento": "f_cas3"
+  },
+  "pinHash": null
+ },
+ "parque": {
+  "funcionarios": {
+   "f_par1": {
+    "nome": "Gabi (exemplo)",
+    "funcao": "Salão de vendas",
+    "ativo": true,
+    "criadoEm": "2026-10-21T12:00:00.000Z"
+   },
+   "f_par2": {
+    "nome": "Hugo (exemplo)",
+    "funcao": "Estoque",
+    "ativo": true,
+    "criadoEm": "2026-10-21T12:00:00.000Z"
+   },
+   "f_par3": {
+    "nome": "Íris (exemplo)",
+    "funcao": "Caixa",
+    "ativo": true,
+    "criadoEm": "2026-10-21T12:00:00.000Z"
+   }
+  },
+  "padrao": {
+   "abertura": "f_par1",
+   "salao": "f_par1",
+   "precificacao": "f_par1",
+   "vitrine_mes": "f_par1",
+   "extintores": "f_par1",
+   "reposicao": "f_par2",
+   "estoque": "f_par2",
+   "limpeza_pesada": "f_par2",
+   "inventario": "f_par2",
+   "caixa": "f_par3",
+   "limpeza": "f_par3",
+   "fechamento": "f_par3"
+  },
+  "pinHash": null
+ }
+}

@@ -1,0 +1,171 @@
+-- =============================================================================
+-- Helpers de autenticação para os testes pgTAP.
+-- Incluir com \ir DENTRO da transação do teste (logo depois do begin):
+-- o schema "tests" e tudo o que ele cria somem no rollback final.
+--
+--   tests.authenticate_as('manager_p')        -- nome curto: vira manager_p@teste.local
+--   tests.authenticate_as('x@exemplo.local')  -- ou o e-mail completo
+--   tests.authenticate_service_role()
+--   tests.authenticate_anon()
+--   tests.reset_role()                        -- volta para postgres, sem JWT
+--   tests.exec_result(sql) / tests.rows_result(sql) -- executa sem abortar o teste
+--
+-- Simula o que o PostgREST faz: set local role + request.jwt.claims.
+-- =============================================================================
+
+-- pgTAP é criado depois das migrations e, desde 20261021002800, função nova do
+-- postgres nasce sem EXECUTE para PUBLIC. Os testes chamam o pgTAP com o papel
+-- authenticated/anon/service_role, então as funções dele são liberadas aqui
+-- (dentro da transação do teste: o rollback final desfaz). Se já estiverem
+-- liberadas (scripts/db/test.sh faz isso uma vez por banco), nada muda.
+do $$
+declare
+  v_fn regprocedure;
+begin
+  for v_fn in
+    select p.oid::regprocedure
+    from pg_proc p
+    join pg_depend d on d.classid = 'pg_proc'::regclass and d.objid = p.oid and d.deptype = 'e'
+    join pg_extension e on e.oid = d.refobjid and d.refclassid = 'pg_extension'::regclass
+    where e.extname = 'pgtap'
+      and not has_function_privilege('anon', p.oid, 'EXECUTE')
+  loop
+    execute format('grant execute on function %s to public', v_fn);
+  end loop;
+end;
+$$;
+
+create schema tests;
+grant usage on schema tests to public;
+
+-- Id determinístico e legível para fixtures: tests.fx('store_p')
+create function tests.fx(p_name text)
+returns uuid
+language sql
+immutable
+as $$
+  select md5('fx:' || p_name)::uuid
+$$;
+
+create function tests.email_of(p_name text)
+returns text
+language sql
+immutable
+as $$
+  select case when p_name like '%@%' then p_name else p_name || '@teste.local' end
+$$;
+
+create function tests.reset_role()
+returns void
+language plpgsql
+as $$
+begin
+  perform set_config('role', 'none', true);
+  perform set_config('request.jwt.claims', '', true);
+end;
+$$;
+
+create function tests.authenticate_as(p_email text)
+returns void
+language plpgsql
+as $$
+declare
+  v_email text := tests.email_of(p_email);
+  v_id uuid;
+begin
+  perform tests.reset_role();
+  select u.id into v_id from auth.users u where u.email = v_email;
+  if v_id is null then
+    raise exception 'tests.authenticate_as: usuário % não existe', v_email;
+  end if;
+  perform set_config(
+    'request.jwt.claims',
+    json_build_object('sub', v_id, 'role', 'authenticated', 'email', v_email, 'aud', 'authenticated')::text,
+    true
+  );
+  perform set_config('role', 'authenticated', true);
+end;
+$$;
+
+create function tests.authenticate_service_role()
+returns void
+language plpgsql
+as $$
+begin
+  perform tests.reset_role();
+  perform set_config('request.jwt.claims', json_build_object('role', 'service_role')::text, true);
+  perform set_config('role', 'service_role', true);
+end;
+$$;
+
+create function tests.authenticate_anon()
+returns void
+language plpgsql
+as $$
+begin
+  perform tests.reset_role();
+  perform set_config('request.jwt.claims', json_build_object('role', 'anon')::text, true);
+  perform set_config('role', 'anon', true);
+end;
+$$;
+
+-- Executa um SELECT count(*) com o papel atual (RLS aplicada)
+create function tests.count_rows(p_sql text)
+returns bigint
+language plpgsql
+as $$
+declare
+  v_count bigint;
+begin
+  execute p_sql into v_count;
+  return v_count;
+end;
+$$;
+
+-- Executa um UPDATE/DELETE com o papel atual e devolve quantas linhas mudaram
+create function tests.affected_rows(p_sql text)
+returns integer
+language plpgsql
+as $$
+declare
+  v_rows integer;
+begin
+  execute p_sql;
+  get diagnostics v_rows = row_count;
+  return v_rows;
+end;
+$$;
+
+-- Executa um comando com o papel atual sem abortar o teste: devolve 'ok' ou
+-- '<sqlstate>:<mensagem>' do erro
+create function tests.exec_result(p_sql text)
+returns text
+language plpgsql
+as $$
+begin
+  execute p_sql;
+  return 'ok';
+exception
+  when others then
+    return sqlstate || ':' || sqlerrm;
+end;
+$$;
+
+-- Executa um UPDATE/DELETE com o papel atual: linhas afetadas, ou -1 se o comando falhar
+create function tests.rows_result(p_sql text)
+returns integer
+language plpgsql
+as $$
+declare
+  v_rows integer;
+begin
+  execute p_sql;
+  get diagnostics v_rows = row_count;
+  return v_rows;
+exception
+  when others then
+    return -1;
+end;
+$$;
+
+grant execute on all functions in schema tests to public;

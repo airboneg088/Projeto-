@@ -1,0 +1,321 @@
+-- =============================================================================
+-- Fixtures dos testes pgTAP. Incluir com \ir depois de helpers/auth.psql.
+-- Os testes montam os próprios dados (não dependem do seed). Ids fixos via
+-- tests.fx('nome'); e-mails <nome>@teste.local.
+--
+-- tests.create_base_fixture():
+--   org_a (Org Teste A): store_p (Loja P Teste: sector_p1, sector_p2)
+--                        store_c (Loja C Teste: sector_c1)
+--   org_b (Org Teste B): store_b (Loja B Teste: sector_b1)
+--   pessoas: owner_a, admin_a (rede A); manager_p; staff_p1 (sector_p1);
+--            staff_p2 (sector_p2); manager_c; staff_c1 (sector_c1);
+--            owner_b (rede B); manager_b; staff_b1 (sector_b1)
+--   vínculos começam há 30 dias (podem ser encerrados com ends_at = now()).
+--   Toda conta da fixture declara a organização (app_metadata.organization_id),
+--   como a administração faz ao criar a conta (D21).
+-- =============================================================================
+
+-- Conta no Auth (o perfil nasce pelo gatilho). p_org: organização da conta
+-- (app_metadata.organization_id); sem ela, a conta não declara organização e só
+-- o sistema (sem usuário logado) consegue dar o 1º vínculo.
+create function tests.create_user(p_name text, p_full_name text, p_org text default null)
+returns uuid
+language plpgsql
+as $$
+begin
+  insert into auth.users (
+    instance_id, id, aud, role, email, email_confirmed_at,
+    raw_app_meta_data, raw_user_meta_data, created_at, updated_at
+  )
+  values (
+    '00000000-0000-0000-0000-000000000000', tests.fx(p_name), 'authenticated', 'authenticated',
+    tests.email_of(p_name), now(),
+    '{"provider": "email", "providers": ["email"]}'::jsonb
+      || case when p_org is null then '{}'::jsonb
+              else jsonb_build_object('organization_id', tests.fx(p_org)) end,
+    jsonb_build_object('full_name', p_full_name), now(), now()
+  );
+  return tests.fx(p_name);
+end;
+$$;
+
+create function tests.create_membership(
+  p_person text,
+  p_org text,
+  p_store text,
+  p_sector text,
+  p_role public.membership_role
+)
+returns uuid
+language plpgsql
+as $$
+begin
+  insert into public.memberships (id, profile_id, organization_id, store_id, sector_id, role, starts_at)
+  values (
+    tests.fx('m_' || p_person),
+    tests.fx(p_person),
+    tests.fx(p_org),
+    case when p_store is null then null else tests.fx(p_store) end,
+    case when p_sector is null then null else tests.fx(p_sector) end,
+    p_role,
+    now() - interval '30 days'
+  );
+  return tests.fx('m_' || p_person);
+end;
+$$;
+
+create function tests.create_base_fixture()
+returns void
+language plpgsql
+as $$
+begin
+  insert into public.organizations (id, name, slug)
+  values (tests.fx('org_a'), 'Org Teste A', 'teste-a'),
+         (tests.fx('org_b'), 'Org Teste B', 'teste-b');
+
+  insert into public.stores (id, organization_id, name, address)
+  values (tests.fx('store_p'), tests.fx('org_a'), 'Loja P Teste', '[TESTE]'),
+         (tests.fx('store_c'), tests.fx('org_a'), 'Loja C Teste', '[TESTE]'),
+         (tests.fx('store_b'), tests.fx('org_b'), 'Loja B Teste', '[TESTE]');
+
+  insert into public.sectors (id, store_id, name)
+  values (tests.fx('sector_p1'), tests.fx('store_p'), 'Setor P1'),
+         (tests.fx('sector_p2'), tests.fx('store_p'), 'Setor P2'),
+         (tests.fx('sector_c1'), tests.fx('store_c'), 'Setor C1'),
+         (tests.fx('sector_b1'), tests.fx('store_b'), 'Setor B1');
+
+  perform tests.create_user('owner_a', '[TESTE] Dono A', 'org_a');
+  perform tests.create_user('admin_a', '[TESTE] Admin A', 'org_a');
+  perform tests.create_user('manager_p', '[TESTE] Gerente P', 'org_a');
+  perform tests.create_user('staff_p1', '[TESTE] Colaborador P1', 'org_a');
+  perform tests.create_user('staff_p2', '[TESTE] Colaborador P2', 'org_a');
+  perform tests.create_user('manager_c', '[TESTE] Gerente C', 'org_a');
+  perform tests.create_user('staff_c1', '[TESTE] Colaborador C1', 'org_a');
+  perform tests.create_user('owner_b', '[TESTE] Dono B', 'org_b');
+  perform tests.create_user('manager_b', '[TESTE] Gerente B', 'org_b');
+  perform tests.create_user('staff_b1', '[TESTE] Colaborador B1', 'org_b');
+
+  perform tests.create_membership('owner_a', 'org_a', null, null, 'owner');
+  perform tests.create_membership('admin_a', 'org_a', null, null, 'admin');
+  perform tests.create_membership('manager_p', 'org_a', 'store_p', null, 'manager');
+  perform tests.create_membership('staff_p1', 'org_a', 'store_p', 'sector_p1', 'staff');
+  perform tests.create_membership('staff_p2', 'org_a', 'store_p', 'sector_p2', 'staff');
+  perform tests.create_membership('manager_c', 'org_a', 'store_c', null, 'manager');
+  perform tests.create_membership('staff_c1', 'org_a', 'store_c', 'sector_c1', 'staff');
+  perform tests.create_membership('owner_b', 'org_b', null, null, 'owner');
+  perform tests.create_membership('manager_b', 'org_b', 'store_b', null, 'manager');
+  perform tests.create_membership('staff_b1', 'org_b', 'store_b', 'sector_b1', 'staff');
+end;
+$$;
+
+-- Tarefa avulsa simples (pending), com itens tests.fx('<nome>:item<N>')
+create function tests.create_task(
+  p_name text,
+  p_store text,
+  p_sector text,
+  p_assignee text default null,
+  p_requires_photo boolean default false,
+  p_requires_note boolean default false,
+  p_requires_approval boolean default true,
+  p_items integer default 2,
+  p_item_photo boolean default false
+)
+returns uuid
+language plpgsql
+as $$
+begin
+  insert into public.tasks (
+    id, organization_id, store_id, sector_id, title, requires_photo, requires_note,
+    requires_approval, weight, assignee_id, window_start_at, due_at
+  )
+  select tests.fx(p_name), s.organization_id, s.id, tests.fx(p_sector), 'Tarefa ' || p_name,
+         p_requires_photo, p_requires_note, p_requires_approval, 2,
+         case when p_assignee is null then null else tests.fx(p_assignee) end,
+         now() - interval '1 hour', now() + interval '1 day'
+  from public.stores s
+  where s.id = tests.fx(p_store);
+
+  insert into public.task_items (id, task_id, position, text, requires_photo)
+  select tests.fx(p_name || ':item' || i), tests.fx(p_name), i, 'Item ' || i, (p_item_photo and i = 1)
+  from generate_series(1, p_items) as i;
+
+  return tests.fx(p_name);
+end;
+$$;
+
+-- Leva a tarefa por uma sequência de status (respeitando a máquina de estados)
+create function tests.walk(p_task uuid, variadic p_statuses public.task_status[])
+returns void
+language plpgsql
+as $$
+declare
+  v_status public.task_status;
+begin
+  foreach v_status in array p_statuses loop
+    update public.tasks
+       set status = v_status,
+           cancel_reason = case when v_status = 'cancelled' then 'Cancelada no teste' else cancel_reason end
+     where id = p_task;
+  end loop;
+end;
+$$;
+
+-- Nova tarefa já no status pedido (caminho mínimo no grafo)
+create function tests.task_in_status(p_status public.task_status)
+returns uuid
+language plpgsql
+as $$
+declare
+  v_id uuid := gen_random_uuid();
+begin
+  insert into public.tasks (id, organization_id, store_id, sector_id, title, due_at)
+  values (v_id, tests.fx('org_a'), tests.fx('store_p'), tests.fx('sector_p1'), 'Máquina de estados',
+          now() + interval '1 day');
+
+  case p_status
+    when 'pending' then null;
+    when 'in_progress' then perform tests.walk(v_id, 'in_progress');
+    when 'submitted' then perform tests.walk(v_id, 'in_progress', 'submitted');
+    when 'approved' then perform tests.walk(v_id, 'in_progress', 'submitted', 'approved');
+    when 'rejected' then perform tests.walk(v_id, 'in_progress', 'submitted', 'rejected');
+    when 'overdue' then perform tests.walk(v_id, 'overdue');
+    when 'cancelled' then perform tests.walk(v_id, 'cancelled');
+  end case;
+  return v_id;
+end;
+$$;
+
+-- Id da tentativa N de uma tarefa (ignora RLS)
+create function tests.attempt_of(p_task text, p_number integer)
+returns uuid
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select a.id from public.task_attempts a
+  where a.task_id = tests.fx(p_task) and a.attempt_number = p_number
+$$;
+
+-- Caminho correto no bucket evidences para a tentativa N da tarefa
+create function tests.evidence_path(p_task text, p_number integer, p_file text)
+returns text
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select format('%s/%s/%s/%s/%s.jpg', t.organization_id, t.store_id, t.id, a.id, tests.fx(p_file))
+  from public.tasks t
+  join public.task_attempts a on a.task_id = t.id
+  where t.id = tests.fx(p_task) and a.attempt_number = p_number
+$$;
+
+-- Envia a foto da tentativa N ao bucket evidences com o papel atual (passa pela
+-- policy de upload: só o executor da tentativa aberta) e devolve o caminho.
+-- register_evidence só aceita foto que existe no storage.
+create function tests.upload_evidence(p_task text, p_number integer, p_file text)
+returns text
+language plpgsql
+as $$
+declare
+  v_path text := tests.evidence_path(p_task, p_number, p_file);
+begin
+  insert into storage.objects (bucket_id, name, owner_id) values ('evidences', v_path, auth.uid()::text);
+  return v_path;
+end;
+$$;
+
+create function tests.sha(p_text text)
+returns text
+language sql
+immutable
+as $$
+  select encode(sha256(convert_to(p_text, 'UTF8')), 'hex')
+$$;
+
+-- Atividade completa de uma loja (key = 'p', 'c' ou 'b'), criada direto como postgres:
+--   rotina tpl_<k> (itens :item1 crítico, :item2), agendamento sch_<k>,
+--   tarefa task_<k> reprovada (tentativa att_<k>, respostas, evidência ev_<k>,
+--   revisão rev_<k> com item marcado), tarefa task_<k>_sub aguardando aprovação
+--   (att_<k>_sub), plano de ação ap_<k>, notificação notif_<k>, pedido LGPD dr_<k>
+--   e objetos nos buckets evidences e references.
+create function tests.create_store_activity(p_key text)
+returns void
+language plpgsql
+as $$
+declare
+  v_store uuid := tests.fx('store_' || p_key);
+  v_sector uuid := tests.fx('sector_' || p_key || '1');
+  v_staff uuid := tests.fx('staff_' || p_key || '1');
+  v_manager uuid := tests.fx('manager_' || p_key);
+  v_tpl uuid := tests.fx('tpl_' || p_key);
+  v_task uuid := tests.fx('task_' || p_key);
+  v_att uuid := tests.fx('att_' || p_key);
+  v_task_sub uuid := tests.fx('task_' || p_key || '_sub');
+  v_att_sub uuid := tests.fx('att_' || p_key || '_sub');
+  v_org uuid;
+begin
+  select s.organization_id into v_org from public.stores s where s.id = v_store;
+
+  insert into public.task_templates (id, organization_id, store_id, title, weight)
+  values (v_tpl, v_org, v_store, 'Rotina ' || p_key, 2);
+  insert into public.template_items (id, template_id, position, text, is_critical)
+  values (tests.fx('tpl_' || p_key || ':item1'), v_tpl, 1, 'Item crítico', true),
+         (tests.fx('tpl_' || p_key || ':item2'), v_tpl, 2, 'Item comum', false);
+
+  insert into public.schedules (id, store_id, template_id, sector_id, window_start, window_end)
+  values (tests.fx('sch_' || p_key), v_store, v_tpl, v_sector, '08:00', '09:00');
+
+  -- Tarefa reprovada (snapshot da rotina v1: peso 2)
+  insert into public.tasks (id, organization_id, store_id, sector_id, template_id, template_version,
+                            title, weight, assignee_id, window_start_at, due_at)
+  values (v_task, v_org, v_store, v_sector, v_tpl, 1, 'Rotina ' || p_key, 2, v_staff,
+          now() - interval '2 hours', now() + interval '2 hours');
+  insert into public.task_items (id, task_id, template_item_id, position, text, is_critical)
+  values (tests.fx('task_' || p_key || ':item1'), v_task, tests.fx('tpl_' || p_key || ':item1'), 1, 'Item crítico', true),
+         (tests.fx('task_' || p_key || ':item2'), v_task, tests.fx('tpl_' || p_key || ':item2'), 2, 'Item comum', false);
+  perform tests.walk(v_task, 'in_progress');
+  update public.tasks set attempt_count = 1 where id = v_task;
+  insert into public.task_attempts (id, task_id, store_id, attempt_number, performed_by, started_at)
+  values (v_att, v_task, v_store, 1, v_staff, now() - interval '1 hour');
+  insert into public.attempt_item_answers (attempt_id, task_id, task_item_id, checked)
+  select v_att, v_task, ti.id, true from public.task_items ti where ti.task_id = v_task;
+  insert into public.evidences (id, organization_id, store_id, task_id, attempt_id, task_item_id,
+                                storage_path, sha256, phash, suspicion)
+  values (tests.fx('ev_' || p_key), v_org, v_store, v_task, v_att, tests.fx('task_' || p_key || ':item1'),
+          format('%s/%s/%s/%s/%s.jpg', v_org, v_store, v_task, v_att, tests.fx('evfile_' || p_key)),
+          tests.sha('ev_' || p_key), null, '{no_exif}');
+  update public.task_attempts set submitted_at = now() - interval '30 minutes' where id = v_att;
+  perform tests.walk(v_task, 'submitted');
+  insert into public.reviews (id, attempt_id, task_id, reviewer_id, decision, reason)
+  values (tests.fx('rev_' || p_key), v_att, v_task, v_manager, 'rejected', 'Foto escura');
+  insert into public.review_item_flags (review_id, task_id, task_item_id)
+  values (tests.fx('rev_' || p_key), v_task, tests.fx('task_' || p_key || ':item1'));
+  perform tests.walk(v_task, 'rejected');
+
+  -- Tarefa aguardando aprovação
+  insert into public.tasks (id, organization_id, store_id, sector_id, title, assignee_id, due_at)
+  values (v_task_sub, v_org, v_store, v_sector, 'Aguardando ' || p_key, v_staff, now() + interval '2 hours');
+  perform tests.walk(v_task_sub, 'in_progress');
+  insert into public.task_attempts (id, task_id, store_id, attempt_number, performed_by, started_at, submitted_at)
+  values (v_att_sub, v_task_sub, v_store, 1, v_staff, now() - interval '1 hour', now() - interval '10 minutes');
+  perform tests.walk(v_task_sub, 'submitted');
+
+  insert into public.action_plans (id, store_id, template_item_id, what, owner_id)
+  values (tests.fx('ap_' || p_key), v_store, tests.fx('tpl_' || p_key || ':item1'), 'Treinar a equipe', v_staff);
+
+  insert into public.notifications (id, recipient_id, store_id, task_id, type, channel, dedupe_key)
+  values (tests.fx('notif_' || p_key), v_staff, v_store, v_task, 'correction_requested', 'in_app',
+          'teste:' || p_key);
+
+  insert into public.data_requests (id, organization_id, profile_id, kind, details)
+  values (tests.fx('dr_' || p_key), v_org, v_staff, 'export', 'Quero meus dados');
+
+  insert into storage.objects (bucket_id, name)
+  values ('evidences', format('%s/%s/%s/%s/%s.jpg', v_org, v_store, v_task, v_att, tests.fx('evfile_' || p_key))),
+         ('references', format('%s/%s/%s/%s.jpg', v_org, v_store, v_tpl, tests.fx('reffile_' || p_key)));
+end;
+$$;
+
+grant execute on all functions in schema tests to public;

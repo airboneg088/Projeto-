@@ -1,0 +1,1 @@
+{"nome": "Éde Utilidades", "lojas": {"primavera": {"nome": "Primavera", "ordem": 1}, "castro": {"nome": "Castro Alves", "ordem": 2}, "parque": {"nome": "Parque América", "ordem": 3}}, "setores": {"salao": "Salão de vendas", "estoque": "Estoque", "caixa": "Caixa", "limpeza": "Limpeza"}, "retencaoDias": 90, "obs": "Setores e rotinas provisórios até a confirmação dos reais."}

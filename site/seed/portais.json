@@ -32,7 +32,13 @@
    "inventario": "f_pri2",
    "caixa": "f_pri3",
    "limpeza": "f_pri3",
-   "fechamento": "f_pri3"
+   "fechamento": "f_pri3",
+   "limpeza_alto": [
+    "f_pri3"
+   ],
+   "organizar_estoque": [
+    "f_pri2"
+   ]
   },
   "pinHash": null
  },
@@ -69,7 +75,13 @@
    "inventario": "f_cas2",
    "caixa": "f_cas3",
    "limpeza": "f_cas3",
-   "fechamento": "f_cas3"
+   "fechamento": "f_cas3",
+   "limpeza_alto": [
+    "f_cas3"
+   ],
+   "organizar_estoque": [
+    "f_cas2"
+   ]
   },
   "pinHash": null
  },
@@ -106,7 +118,13 @@
    "inventario": "f_par2",
    "caixa": "f_par3",
    "limpeza": "f_par3",
-   "fechamento": "f_par3"
+   "fechamento": "f_par3",
+   "limpeza_alto": [
+    "f_par3"
+   ],
+   "organizar_estoque": [
+    "f_par2"
+   ]
   },
   "pinHash": null
  }

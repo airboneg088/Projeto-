@@ -5,14 +5,30 @@ Versão em site (link do claude.ai) do Éde Gestão. Cada loja (Primavera, Castr
 - Publicado em: https://claude.ai/artifact/CmvnWFnFwwWfmN36J6iSeL
 - `index.html`: o site inteiro (HTML, CSS e JavaScript, sem build).
 - `img/`: logo da Éde (brand book).
-- `seed/`: configuração inicial gravada no banco — `org.json` (`config/org`), `rotinas.json` (`config/rotinas`: 8 diárias e 4 do mês) e `portais.json` (`portais/<loja>`: funcionários de exemplo e quem faz cada rotina por padrão). Nomes com “(exemplo)” são fictícios.
-- `teste/run.mjs`: teste ponta a ponta com uma simulação local da plataforma (`node site/teste/run.mjs`; precisa do ffmpeg; `CHROME_PATH` se o Playwright não achar o navegador).
+- `seed/`: configuração inicial gravada no banco — `org.json` (`config/org`), `rotinas.json` (`config/rotinas`: 8 diárias, 4 do mês e 2 “a cada 7 dias”) e `portais.json` (`portais/<loja>`: funcionários de exemplo e quem faz cada rotina por padrão). Nomes com “(exemplo)” são fictícios.
+- `local/ede-gestao.html`: o mesmo site em um arquivo só, para abrir direto no computador ou no celular, sem o claude.ai. Gerado por `node site/local/montar.mjs` a partir do `index.html` e do `seed/`.
+- `teste/run.mjs`: teste ponta a ponta com uma simulação local da plataforma, incluindo o arquivo local (`node site/teste/run.mjs`; precisa do ffmpeg; `CHROME_PATH` se o Playwright não achar o navegador).
 
 ## Como funciona
 
 1. Escolhe o portal da loja e depois “Quem está usando?” (o nome do funcionário ou Gerência).
-2. Gerência: no **Quadro**, cada coluna é uma pessoa; arrasta o cartão para quem vai fazer (no celular, segura o cartão um instante e arrasta) ou toca no cartão e escolhe. Alterna entre **Diárias de hoje** e **Do mês**. **Nova tarefa** cria uma avulsa. **Aprovar** mostra fotos e vídeos enviados; aprova ou pede correção com motivo. **Equipe** cadastra funcionários e o PIN da gerência. **Mais › Rotinas** define quem faz cada rotina por padrão.
-3. Funcionário: vê as tarefas dele (hoje e do mês), começa, marca os itens, tira foto ou grava vídeo e envia para aprovação.
+2. Gerência:
+   - **Início**: o que precisa de atenção (ex.: “Faz 12 dias que não fazem ‘Limpeza das mercadorias de cima’”, rotina que ficou dias sem fazer, dia da semana em que ela falha, envio que costuma atrasar, item com problema repetido) e o desempenho de cada pessoa (tarefas abertas agora, aprovadas e pontos, tempo para terminar, ritmo comparado com a média da loja, no prazo e correções).
+   - **Quadro**: cada coluna é uma pessoa; arrasta o cartão para quem vai fazer (no celular, segura o cartão um instante e arrasta) ou toca no cartão e marca uma ou mais pessoas. Tarefa em equipe aparece na coluna de cada uma; arrastar para outra pessoa pergunta se fazem juntos ou se troca. Alterna entre **Diárias de hoje** e **Do mês**. **Nova tarefa** cria uma avulsa, já com uma ou mais pessoas.
+   - **Aprovar** mostra fotos e vídeos enviados; aprova ou pede correção com motivo. **Equipe** cadastra funcionários e o PIN da gerência. **Mais › Rotinas** mostra a última vez de cada rotina e define quem faz por padrão (uma ou mais pessoas).
+3. Funcionário: vê as tarefas dele (hoje e do mês), começa, marca os itens, tira foto ou grava vídeo e envia para aprovação. Em tarefa de equipe, quem chega depois toca em **Ajudar nesta tarefa**: o envio é um só e o que cada um marca aparece para todos.
+
+## Como a análise entende a rotina
+
+- Diária: olha os últimos 14 dias (e 60 para o padrão por dia da semana). Avisa quando ficou 2 ou mais dias seguidos sem fazer, quando foi feita em menos de 70% dos dias, quando um dia da semana quase nunca é feito e quando costuma ser enviada depois do horário.
+- A cada N dias (`tipo: "periodica"`, `cadaDias`): entra sozinha no quadro do dia quando passou N dias desde a última vez e volta todo dia até ser feita; o Início avisa quantos dias faz.
+- Do mês: avisa quando a do mês atrasou e quando a do mês passado ficou sem fazer.
+- Item marcado “Com problema” 2 ou mais vezes em 14 dias vira aviso, com o último relato.
+- Uma tarefa avulsa conta como a rotina quando o texto bate com as `palavras` da rotina (ex.: “limpar as prateleiras do alto” conta como “Limpeza das mercadorias de cima”).
+
+## Arquivo local
+
+`local/ede-gestao.html` abre direto no navegador (dois cliques no computador; no celular, abrir pelo app de arquivos ou pelo navegador). Os dados ficam só naquele aparelho e naquele navegador; em **Gerência › Mais › Cópia dos dados** dá para salvar uma cópia e restaurar (inclusive em outro aparelho). Sem o claude.ai, cada aparelho tem os seus próprios dados: para a equipe toda usar junto, use o link publicado.
 
 ## Dados no banco
 
@@ -20,7 +36,7 @@ Versão em site (link do claude.ai) do Éde Gestão. Cada loja (Primavera, Castr
 |---|---|
 | `config/org`, `config/rotinas` | lojas, setores e rotinas (só a proprietária altera) |
 | `portais/<loja>` | funcionários, responsável padrão por rotina e o hash do PIN |
-| `diarias/<loja>_<AAAA-MM-DD>` | tarefas do dia (criadas sozinhas a partir das rotinas) |
+| `diarias/<loja>_<AAAA-MM-DD>` | tarefas do dia (criadas sozinhas a partir das rotinas); `responsaveis` lista quem faz (tarefas antigas têm só `responsavel`) |
 | `mensais/<loja>_<AAAA-MM>` | tarefas do mês |
 | `midias/<id>` (+ `partes/<n>`) | foto ou vídeo de cada envio; o arquivo vai para o armazenamento do site quando a conta pode enviar, senão fica no banco (vídeo reduzido e em partes) |
 

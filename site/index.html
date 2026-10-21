@@ -166,7 +166,7 @@ textarea { min-height: 92px; resize: vertical; }
 .barra-p i { display: block; height: 100%; background: var(--ok); border-radius: 5px; transition: width 300ms var(--ease-out); }
 
 /* Quadro (kanban) */
-.board { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 10px; scroll-snap-type: x proximity; overscroll-behavior-x: contain; align-items: flex-start; }
+.board { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 10px; scroll-snap-type: x proximity; overscroll-behavior-x: contain; align-items: stretch; } /* colunas da mesma altura: soltar abaixo do último cartão também conta */
 .col { flex: 0 0 min(290px, 84vw); scroll-snap-align: start; background: var(--surface-2); border-radius: var(--r-m); padding: 10px; display: grid; gap: 8px; align-content: start; min-height: 260px; border: 2px solid transparent; transition: border-color 120ms var(--ease-out), background-color 120ms var(--ease-out); }
 .col.alvo { border-color: var(--action); background: var(--surface-3); }
 .col .ch { display: flex; align-items: center; gap: 10px; padding: 4px 4px 6px; }
@@ -179,6 +179,8 @@ textarea { min-height: 92px; resize: vertical; }
 .kcard { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-m); padding: 12px; display: grid; gap: 6px; cursor: grab; touch-action: pan-x pan-y; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; text-align: left; width: 100%; }
 .kcard .kt { font-weight: 800; font-size: 16px; line-height: 1.25; }
 .kcard .st { justify-self: start; }
+.kcard .keq { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; color: var(--s-and-fg); }
+.kcard .keq svg { flex: none; }
 .kcard .km { font-size: 13px; color: var(--ink-soft); display: flex; flex-wrap: wrap; gap: 4px 10px; }
 .kcard.lock { cursor: pointer; }
 .kcard.feita { opacity: .7; }
@@ -287,6 +289,49 @@ td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; white-space:
 .carregando { display: grid; gap: 10px; }
 .sk { height: 64px; border-radius: var(--r-m); background: var(--surface-2); }
 @media (max-width: 720px) { .kpis { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+
+/* Início: o que precisa de atenção e desempenho da equipe */
+.atencao { display: grid; gap: 10px; }
+.alr { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-m); padding: 12px 14px; display: grid; grid-template-columns: 28px minmax(0,1fr); gap: 10px; align-items: start; }
+.alr .ic { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; }
+.alr.alta .ic { background: var(--s-atr-bg); color: var(--s-atr-fg); }
+.alr.media .ic { background: var(--s-agu-bg); color: var(--s-agu-fg); }
+.alr.info .ic { background: var(--s-and-bg); color: var(--s-and-fg); }
+.alr .tx { display: grid; gap: 2px; min-width: 0; }
+.alr .nv { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-soft); }
+.alr b { font-size: 16px; line-height: 1.35; }
+.alr .d { font-size: 14px; color: var(--ink-soft); }
+.alr .acoes { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.destaques { display: grid; grid-template-columns: repeat(auto-fill, minmax(165px, 1fr)); gap: 10px; }
+.dest { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-m); padding: 12px; display: grid; gap: 2px; align-content: start; }
+.dest .k { font-size: 13px; color: var(--ink-soft); font-weight: 700; }
+.dest b { font-size: 17px; line-height: 1.25; }
+.dest .d { font-size: 13px; color: var(--ink-soft); }
+.eqs { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); gap: 12px; }
+.pd { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-m); padding: 14px; display: grid; gap: 12px; align-content: start; }
+.pd .cabp { display: flex; align-items: center; gap: 10px; }
+.pd .cabp .av { background: var(--surface-2); color: var(--ink); }
+.pd .cabp b { display: block; font-size: 17px; line-height: 1.2; }
+.pd .cabp .f { font-size: 13px; color: var(--ink-soft); }
+.selos { display: flex; flex-wrap: wrap; gap: 6px; }
+.selo { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; font-weight: 800; padding: 3px 10px 3px 8px; border-radius: var(--r-pill); }
+.selo svg { width: 14px; height: 14px; flex: none; }
+.selo.alta { background: var(--s-atr-bg); color: var(--s-atr-fg); }
+.selo.baixa { background: var(--s-and-bg); color: var(--s-and-fg); }
+.selo.bom { background: var(--ok-bg); color: var(--ok); }
+.selo.ruim { background: var(--s-agu-bg); color: var(--s-agu-fg); }
+.med { display: grid; gap: 5px; }
+.med .lin { display: flex; justify-content: space-between; gap: 8px; font-size: 14px; }
+.med .lin span { color: var(--ink-soft); font-weight: 600; }
+.med .lin b { font-variant-numeric: tabular-nums; text-align: right; }
+.medb { height: 8px; border-radius: 4px; background: var(--surface-2); overflow: hidden; }
+.medb i { display: block; height: 100%; min-width: 4px; border-radius: 4px; background: var(--action); }
+.medb i.zero { min-width: 0; }
+.med2 { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 8px; }
+.med2 > div { background: var(--surface-2); border-radius: var(--r-s); padding: 8px 10px; display: grid; gap: 2px; align-content: start; }
+.med2 span { font-size: 12px; color: var(--ink-soft); font-weight: 700; line-height: 1.25; }
+.med2 b { font-family: var(--font-display); font-size: 20px; font-variant-numeric: tabular-nums; line-height: 1.15; }
+.aviso-local { background: var(--s-and-bg); color: var(--s-and-fg); border-radius: var(--r-s); padding: 10px 12px; font-weight: 700; font-size: 15px; }
 </style>
 
 <div id="root">
@@ -357,6 +402,7 @@ const I = {
   cadeado: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8.5 10.5V8a3.5 3.5 0 017 0v2.5" fill="none" stroke="currentColor" stroke-width="2"/></svg>',
   mao: '<svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 12V5.5a1.5 1.5 0 013 0V11m0-1V4.5a1.5 1.5 0 013 0V11m0-1.5a1.5 1.5 0 013 0V15a6 6 0 01-6 6h-1a6 6 0 01-5-2.7L4 15.5a1.5 1.5 0 012.4-1.8L8 15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   mais1: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>',
+  inicio: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11.2L12 4.5l8 6.7V20h-5.2v-5.6H9.2V20H4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>',
 };
 const STATUS = {
   pendente: { l: "A fazer", i: I.relogio }, andamento: { l: "Fazendo", i: I.play }, enviada: { l: "Aguardando aprovação", i: I.ampulheta },
@@ -373,6 +419,7 @@ const S = {
   org: null, rotinas: {}, portais: {}, diarias: {}, mensais: {}, carregado: { org: false, rotinas: false, portais: false, diarias: false, mensais: false },
   portal: local.get("ede.portal"), quem: null, tela: null, escopo: "hoje", filtro: null, aberta: null, modal: null, menu: false,
   aprIdx: 0, falta: null, painel: { periodo: "7", extra: null, carregando: false }, erroGeral: null, gerando: {}, renderPendente: false, enviando: null,
+  local: false, hist: {}, periodicasOk: {}, periodoEq: 7, todosAlertas: false, novaPre: null,
 };
 function carregarQuem() { if (!S.portal) { S.quem = null; return; } const q = local.get("ede.quem." + S.portal); S.quem = q || null; }
 carregarQuem();
@@ -381,6 +428,16 @@ carregarQuem();
 // Regras
 // ===========================================================================
 function tentativaAtual(t) { return t.n ? t.tentativas?.[t.n] : null; }
+// Quem faz a tarefa: lista (responsaveis). Tarefas antigas têm só "responsavel".
+function resps(t) { return Array.isArray(t?.responsaveis) ? [...new Set(t.responsaveis.filter(Boolean))] : t?.responsavel ? [t.responsavel] : []; }
+const patchResps = (lista) => ({ responsaveis: lista, responsavel: lista[0] || null });
+function padraoDe(loja, rid) { const v = S.portais[loja]?.padrao?.[rid]; return Array.isArray(v) ? v.filter(Boolean) : v ? [v] : []; }
+// Um envio é feito em equipe: quem começou e quem tocou em "Ajudar".
+function equipeTentativa(x) { return x ? [...new Set([x.por, ...Object.keys(x.participantes || {})].filter(Boolean))] : []; }
+function participa(x, fid) { return !!x && (x.por === fid || !!x.participantes?.[fid]); }
+function aberta(x) { return !!x && !x.envio && !x.encerrada; }
+function podeEditar(t, fid) { const x = tentativaAtual(t); return aberta(x) && participa(x, fid) && resps(t).includes(fid); }
+function nomesLista(loja, ids, curto = true) { const n = ids.map((id) => { const v = nomeFunc(loja, id); return curto ? v.replace(/\s*\(exemplo\)/i, "") : v; }); return !n.length ? "Ninguém ainda" : n.length === 1 ? n[0] : n.slice(0, -1).join(", ") + " e " + n[n.length - 1]; }
 function midiasDe(x) { return Object.entries(x?.midias || {}).filter(([, m]) => m && !m.removida).map(([id]) => id); }
 function primeiraEnviada(t) { const ks = Object.keys(t.tentativas || {}).map(Number).sort((a, b) => a - b); for (const k of ks) if (t.tentativas[k].envio) return k; return null; }
 function statusVisivel(t, agora = Date.now()) {
@@ -396,7 +453,8 @@ function nomeFunc(loja, id) { if (!id) return "Ninguém ainda"; return S.portais
 function lojaNome(l) { return S.org?.lojas?.[l]?.nome || l; }
 function docId(loja, chave) { return `${loja}_${chave}`; }
 function colecao(t) { return t.tipo === "mensal" ? "mensais" : "diarias"; }
-function tarefasDoc(col, id) { const d = (col === "mensais" ? S.mensais : S.diarias)[id]; return d ? Object.entries(d.tarefas || {}).map(([tid, t]) => ({ ...t, id: tid, doc: id, loja: d.loja, chave: d.data || d.mes, tipo: col === "mensais" ? "mensal" : "diaria" })) : []; }
+function docParaTarefas(col, id, d) { return d ? Object.entries(d.tarefas || {}).map(([tid, t]) => ({ ...t, id: tid, doc: id, loja: d.loja, chave: d.data || d.mes, tipo: col === "mensais" ? "mensal" : "diaria" })) : []; }
+function tarefasDoc(col, id) { return docParaTarefas(col, id, (col === "mensais" ? S.mensais : S.diarias)[id]); }
 function tarefasHoje(loja) { return tarefasDoc("diarias", docId(loja, hoje())); }
 function tarefasMes(loja) { return tarefasDoc("mensais", docId(loja, mesAtual())); }
 function tarefasRecentes(loja) {
@@ -413,13 +471,14 @@ async function atualizarTarefa(t, patch) { await S.db.doc(`${colecao(t)}/${t.doc
 // Carga, assinaturas e geração das tarefas
 // ===========================================================================
 async function iniciar() {
-  const c = window.claude;
+  let c = window.claude;
+  if (window.EDE_LOCAL) { try { c = await criarLocal(window.EDE_LOCAL); S.local = true; } catch (e) { console.error(e); S.erroGeral = "local"; render(); return; } }
   if (!c || typeof c.use !== "function") { S.erroGeral = "fora"; render(); return; }
   const [db, user, dl, assets] = await Promise.all([c.use("db"), c.use("user"), c.use("downloads"), c.use("assets")]);
   S.db = db; S.dl = dl; S.assets = assets;
   if (!db) { S.erroGeral = "semdb"; render(); return; }
   if (user) { try { const me = await user.me(); S.isOwner = !!me.isOwner; S.canEdit = !!me.canEdit; } catch {} }
-  const ok = (k) => { S.carregado[k] = true; gerarFaltantes(); render(); };
+  const ok = (k) => { S.carregado[k] = true; gerarFaltantes(); if (pronto() && S.portal) { carregarHistorico(S.portal); garantirPeriodicas(S.portal); } render(); };
   db.doc("config/org").onSnapshot((s) => { S.org = s.exists ? s.data() : null; ok("org"); }, falha);
   db.doc("config/rotinas").onSnapshot((s) => { S.rotinas = s.exists ? (s.data().rotinas || {}) : {}; ok("rotinas"); }, falha);
   db.collection("portais").onSnapshot((q) => { const o = {}; q.docs.forEach((d) => { o[d.id] = d.data(); }); S.portais = o; ok("portais"); }, falha);
@@ -449,19 +508,175 @@ async function garantirDoc(col, id, fazer) {
   } catch (e) { console.warn("geração", e); } finally { setTimeout(() => { delete S.gerando[k]; }, 10000); }
 }
 function montar(loja, tipo, chave) {
-  const out = {}; const padrao = S.portais[loja]?.padrao || {}; const ativos = S.portais[loja]?.funcionarios || {};
+  const out = {};
   for (const [rid, r] of Object.entries(S.rotinas)) {
     if (r.ativa === false || !r.lojas?.[loja] || (r.tipo || "diaria") !== tipo) continue;
     if (tipo === "diaria" && !(r.dias || [1, 2, 3, 4, 5, 6, 7]).includes(diaSemana(chave))) continue;
-    const resp = padrao[rid] && ativos[padrao[rid]]?.ativo !== false && ativos[padrao[rid]] ? padrao[rid] : null;
-    const inicio = tipo === "diaria" ? isoLocal(chave, r.inicio || "08:00") : isoLocal(chave + "-01", "00:00");
-    // Do mês: se a lista do mês nasce depois do dia combinado (ex.: primeiro uso no meio do mês), o prazo vai para o último dia.
-    const diaM = diaDoMes(chave, r.dia || ultimoDia(chave)); const prazo = tipo === "diaria" ? isoLocal(chave, r.fim || "18:00") : isoLocal(diaM >= hoje() ? diaM : diaDoMes(chave, ultimoDia(chave)), r.fim || "18:00");
-    out[`r_${rid}`] = { rotina: rid, titulo: r.titulo, instrucoes: r.instrucoes || "", setor: r.setor || null, responsavel: resp, inicio, prazo,
-      exigeMidia: r.exigeMidia !== false, exigeAprovacao: r.exigeAprovacao !== false, peso: r.peso || 1,
-      itens: JSON.parse(JSON.stringify(r.itens || {})), status: "pendente", n: 0, tentativas: {} };
+    out[`r_${rid}`] = tarefaDaRotina(loja, rid, r, tipo, chave);
   }
   return out;
+}
+function tarefaDaRotina(loja, rid, r, tipo, chave) {
+  const ativos = S.portais[loja]?.funcionarios || {};
+  const resp = padraoDe(loja, rid).filter((id) => ativos[id] && ativos[id].ativo !== false);
+  const inicio = tipo === "diaria" ? isoLocal(chave, r.inicio || "08:00") : isoLocal(chave + "-01", "00:00");
+  // Do mês: se a lista do mês nasce depois do dia combinado (ex.: primeiro uso no meio do mês), o prazo vai para o último dia.
+  const diaM = diaDoMes(chave, r.dia || ultimoDia(chave)); const prazo = tipo === "diaria" ? isoLocal(chave, r.fim || "18:00") : isoLocal(diaM >= hoje() ? diaM : diaDoMes(chave, ultimoDia(chave)), r.fim || "18:00");
+  return { rotina: rid, titulo: r.titulo, instrucoes: r.instrucoes || "", setor: r.setor || null, ...patchResps(resp), inicio, prazo,
+    exigeMidia: r.exigeMidia !== false, exigeAprovacao: r.exigeAprovacao !== false, peso: r.peso || 1,
+    itens: JSON.parse(JSON.stringify(r.itens || {})), status: "pendente", n: 0, tentativas: {} };
+}
+// Tarefa da rotina posta no dia de hoje fora do horário normal: começa agora e, se o horário já passou, ganha 2 horas.
+function tarefaParaHoje(loja, rid, r) {
+  const t = tarefaDaRotina(loja, rid, r, "diaria", hoje()); const agora = Date.now();
+  if (new Date(t.inicio).getTime() > agora) return t;
+  t.inicio = new Date(agora).toISOString();
+  if (new Date(t.prazo).getTime() < agora + 3600e3) t.prazo = new Date(Math.min(agora + 2 * 3600e3, new Date(isoLocal(hoje(), "23:59")).getTime())).toISOString();
+  return t;
+}
+
+// ===========================================================================
+// Histórico (últimos 60 dias) — base da análise da rotina e do desempenho
+// ===========================================================================
+const DIAS_HIST = 60;
+const diasEntre = (a, b) => Math.round((Date.parse(b + "T12:00:00Z") - Date.parse(a + "T12:00:00Z")) / 864e5);
+const dataBR = (d) => `${d.slice(8, 10)}/${d.slice(5, 7)}`;
+const haDias = (n) => n === 0 ? "hoje" : n === 1 ? "ontem" : `há ${n} dias`;
+const norm = (v) => String(v || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+const mediana = (v) => { const a = [...v].sort((x, y) => x - y); const m = a.length >> 1; return a.length ? (a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2) : null; };
+const fmtMin = (m) => m == null ? "—" : m < 60 ? `${Math.max(1, Math.round(m))} min` : `${Math.floor(m / 60)} h${Math.round(m % 60) ? " " + Math.round(m % 60) + " min" : ""}`;
+async function carregarHistorico(loja, forcar = false) {
+  const h = S.hist[loja]; if (!S.db || !loja) return;
+  if (h && (h.estado === "carregando" || (!forcar && Date.now() - h.em < 10 * 60e3))) return;
+  S.hist[loja] = { estado: "carregando", docs: h?.docs || {}, em: Date.now() };
+  try {
+    const q = await S.db.collection("diarias").where("loja", "==", loja).where("data", ">=", somaDias(hoje(), -(DIAS_HIST - 1))).get();
+    const o = {}; q.docs.forEach((d) => { o[d.id] = d.data(); }); S.hist[loja] = { estado: "ok", docs: o, em: Date.now() };
+  } catch (e) { console.warn("histórico", e); S.hist[loja] = { estado: "erro", docs: h?.docs || {}, em: Date.now() }; }
+  delete S.periodicasOk[docId(loja, hoje())]; garantirPeriodicas(loja); render();
+}
+// Diárias da loja: histórico + o que está ao vivo (o ao vivo vale mais).
+function diariasDaLoja(loja) { const o = { ...(S.hist[loja]?.docs || {}) }; for (const [id, d] of Object.entries(S.diarias)) if (d.loja === loja) o[id] = d; return o; }
+function tarefasHist(loja) {
+  const out = []; for (const [id, d] of Object.entries(diariasDaLoja(loja))) out.push(...docParaTarefas("diarias", id, d));
+  for (const [id, d] of Object.entries(S.mensais)) if (d.loja === loja) out.push(...docParaTarefas("mensais", id, d));
+  return out;
+}
+const feita = (t) => ["aprovada", "enviada"].includes(t.status);
+function diaFeito(t) { const x = tentativaAtual(t); return x?.envio ? fmtData(new Date(x.envio)) : t.chave?.length === 10 ? t.chave : fmtData(new Date(t.prazo)); }
+// Avulsa que fala da mesma coisa que a rotina (palavras da rotina, ou o título dela dentro do texto) conta como feita.
+function combina(r, t) {
+  if (!r || t.rotina) return false; const txt = norm([t.titulo, t.instrucoes, ...Object.values(t.itens || {}).map((i) => i.texto)].join(" "));
+  if (Array.isArray(r.palavras) && r.palavras.length) return r.palavras.every((g) => (Array.isArray(g) ? g : [g]).some((w) => txt.includes(norm(w))));
+  return txt.includes(norm(r.titulo));
+}
+function ultimaVez(loja, rid, ts = tarefasHist(loja)) {
+  const r = S.rotinas[rid]; let melhor = null;
+  for (const t of ts) if (feita(t) && (t.rotina === rid || combina(r, t))) { const d = diaFeito(t); if (!melhor || d > melhor.data) melhor = { data: d, t }; }
+  return melhor;
+}
+// Rotina "a cada N dias": entra no dia de hoje quando já passou o combinado desde a última vez (e volta todo dia até ser feita).
+async function garantirPeriodicas(loja) {
+  const id = docId(loja, hoje()); const doc = S.diarias[id];
+  if (S.hist[loja]?.estado !== "ok" || !doc?.tarefas || S.periodicasOk[id] || S.gerando["p/" + id]) return;
+  const ts = tarefasHist(loja); const faltam = {};
+  for (const [rid, r] of Object.entries(S.rotinas)) {
+    if (r.tipo !== "periodica" || r.ativa === false || !r.lojas?.[loja] || doc.tarefas[`r_${rid}`]) continue;
+    if (!(r.dias || [1, 2, 3, 4, 5, 6, 7]).includes(diaSemana(hoje()))) continue;
+    const u = ultimaVez(loja, rid, ts); if (u && diasEntre(u.data, hoje()) < (r.cadaDias || 7)) continue;
+    faltam[`r_${rid}`] = tarefaParaHoje(loja, rid, r);
+  }
+  if (!Object.keys(faltam).length) { S.periodicasOk[id] = true; return; }
+  S.gerando["p/" + id] = true;
+  try {
+    const ref = S.db.doc(`diarias/${id}`);
+    let lease = { acquired: true }; try { lease = await ref.acquire({ holder: uid("h"), ttlMs: 8000 }); } catch {}
+    if (!lease.acquired) return;
+    const atual = (await ref.get()).data()?.tarefas || {}; const novos = Object.fromEntries(Object.entries(faltam).filter(([k]) => !atual[k]));
+    if (Object.keys(novos).length) await ref.update({ tarefas: novos });
+    S.periodicasOk[id] = true;
+  } catch (e) { console.warn("periódicas", e); } finally { setTimeout(() => { delete S.gerando["p/" + id]; }, 10000); }
+}
+const DIAS_SEMANA = { 1: "Às segundas", 2: "Às terças", 3: "Às quartas", 4: "Às quintas", 5: "Às sextas", 6: "Aos sábados", 7: "Aos domingos" };
+// Lê o histórico da loja e diz o que está parado há mais tempo que o combinado, o que costuma falhar e o que repete problema.
+function analisarRotina(loja) {
+  const ts = tarefasHist(loja); const hj = hoje(); const agora = Date.now(); const out = [];
+  const venceu = (t) => feita(t) || new Date(t.prazo).getTime() < agora;
+  const hojeDoc = S.diarias[docId(loja, hj)]?.tarefas || {};
+  const acaoRot = (rid) => hojeDoc[`r_${rid}`] && !feita({ status: hojeDoc[`r_${rid}`].status }) ? { tipo: "abrir", ref: `diarias|${docId(loja, hj)}|r_${rid}`, l: "Ver a tarefa de hoje" } : hojeDoc[`r_${rid}`] ? null : { tipo: "porHoje", rid, l: "Pôr no quadro de hoje" };
+  const quem = (u) => { const eq = equipeTentativa(tentativaAtual(u.t)); return eq.length ? `, por ${nomesLista(loja, eq)}` : ""; };
+  for (const [rid, r] of Object.entries(S.rotinas)) {
+    if (r.ativa === false || !r.lojas?.[loja]) continue;
+    const tipo = r.tipo || "diaria"; const daRot = ts.filter((t) => t.rotina === rid && t.status !== "cancelada");
+    const u = ultimaVez(loja, rid, ts); const dias = u ? diasEntre(u.data, hj) : null;
+    if (tipo === "periodica") {
+      const cada = r.cadaDias || 7;
+      if (!u) out.push({ nivel: daRot.length ? "alta" : "media", peso: 50, txt: `Não há registro de “${r.titulo}” nos últimos ${DIAS_HIST} dias.`, det: `O combinado é a cada ${cada} dias.`, acao: acaoRot(rid) });
+      else if (dias > cada) out.push({ nivel: dias >= 2 * cada ? "alta" : "media", peso: dias / cada, txt: `Faz ${dias} dias que não fazem “${r.titulo}”.`, det: `O combinado é a cada ${cada} dias. Última vez em ${dataBR(u.data)}${quem(u)}.`, acao: acaoRot(rid) });
+    } else if (tipo === "diaria") {
+      const passados = daRot.filter((t) => t.tipo === "diaria" && venceu(t));
+      const recentes = passados.filter((t) => t.chave >= somaDias(hj, -13));
+      const okR = recentes.filter(feita).length;
+      const pulouDesde = u ? passados.filter((t) => t.chave > u.data && !feita(t)).length : passados.length;
+      if (pulouDesde >= 2 && (dias == null || dias >= 2)) out.push({ nivel: pulouDesde >= 3 ? "alta" : "media", peso: pulouDesde, txt: u ? `Faz ${dias} dias que ninguém faz “${r.titulo}”.` : `“${r.titulo}” não foi feita nenhuma vez nos últimos ${DIAS_HIST} dias.`, det: u ? `Última vez em ${dataBR(u.data)}${quem(u)}. Ficou sem fazer em ${pulouDesde} dias seguidos.` : `Ficou sem fazer em ${pulouDesde} dias.`, acao: acaoRot(rid) });
+      else if (recentes.length >= 4 && okR / recentes.length < 0.7) out.push({ nivel: okR / recentes.length < 0.4 ? "alta" : "media", peso: 1 - okR / recentes.length, txt: `“${r.titulo}” foi feita em ${okR} de ${recentes.length} dias.`, det: "Últimos 14 dias.", acao: acaoRot(rid) });
+      if (passados.length >= 10 && passados.filter(feita).length / passados.length >= 0.7) {
+        const porDia = {}; for (const t of passados) { const w = diaSemana(t.chave); (porDia[w] ||= [0, 0])[1]++; if (feita(t)) porDia[w][0]++; }
+        for (const [w, [okW, nW]] of Object.entries(porDia)) if (nW >= 3 && okW / nW <= 0.34) out.push({ nivel: "info", peso: 1 - okW / nW, txt: `${DIAS_SEMANA[w]}, “${r.titulo}” quase nunca é feita (${okW} de ${nW}).`, det: "Nos outros dias ela é feita. Vale ver a escala desse dia." });
+      }
+      const enviadas = daRot.filter((t) => tentativaAtual(t)?.envio).sort((a, b) => (b.chave > a.chave ? 1 : -1)).slice(0, 10);
+      const tarde = enviadas.filter((t) => new Date(tentativaAtual(t).envio) > new Date(t.prazo)).length;
+      if (enviadas.length >= 4 && tarde / enviadas.length >= 0.5) out.push({ nivel: "info", peso: tarde / enviadas.length, txt: `“${r.titulo}” costuma ser enviada depois do horário (${tarde} de ${enviadas.length}).`, det: `O horário combinado é até ${esc(r.fim || "18:00")}.` });
+    } else if (tipo === "mensal") {
+      const atual = daRot.find((t) => t.tipo === "mensal" && t.chave === mesAtual());
+      if (atual && !feita(atual) && new Date(atual.prazo).getTime() < agora) out.push({ nivel: "alta", peso: 10, txt: `“${r.titulo}” do mês está atrasada.`, det: `O prazo era ${dataCurta(atual.prazo)}.`, acao: { tipo: "abrir", ref: refDe(atual), l: "Abrir a tarefa" } });
+      const ant = daRot.find((t) => t.tipo === "mensal" && t.chave === mesAnterior(mesAtual()));
+      if (ant && !feita(ant)) out.push({ nivel: "media", peso: 5, txt: `${nomeMes(mesAnterior(mesAtual()))} ficou sem “${r.titulo}”.`, det: "A tarefa do mês passado não foi enviada." });
+    }
+  }
+  // Item que repete problema
+  const probs = {}; const desde = somaDias(hj, -13);
+  for (const t of ts) for (const x of Object.values(t.tentativas || {})) {
+    if (!x.envio || fmtData(new Date(x.envio)) < desde) continue;
+    for (const [iid, resp] of Object.entries(x.respostas || {})) if (resp?.ok === false && t.itens?.[iid]) { const k = (t.rotina || norm(t.titulo)) + "|" + iid; const p = (probs[k] ||= { n: 0, texto: t.itens[iid].texto, onde: t.titulo, obs: "", em: "" }); p.n++; if (x.envio > p.em) { p.em = x.envio; p.obs = resp.obs || ""; } }
+  }
+  for (const p of Object.values(probs)) if (p.n >= 2) out.push({ nivel: "media", peso: p.n, txt: `“${p.texto}” teve problema ${p.n} vezes em 14 dias.`, det: `${p.onde}.${p.obs ? ` Último relato: “${p.obs}”` : ""}`, acao: { tipo: "criar", titulo: `Resolver: ${p.texto}`.slice(0, 120), instr: `Problema relatado ${p.n} vezes em ${p.onde}.${p.obs ? ` Último relato: ${p.obs}` : ""}`, l: "Criar tarefa para resolver" } });
+  const ordem = { alta: 0, media: 1, info: 2 };
+  return out.sort((a, b) => (ordem[a.nivel] - ordem[b.nivel]) || (b.peso - a.peso));
+}
+// Desempenho por pessoa: carga agora, produção, tempo para terminar, prazo e correções.
+// Ritmo: tempo gasto ÷ tempo que a tarefa tinha (do mês: ÷ tempo normal da rotina), comparado com a mediana da loja. Assim dá para comparar quem faz rotinas diferentes.
+function desempenho(loja, dias) {
+  const ini = somaDias(hoje(), -(dias - 1)); const iniMs = new Date(isoLocal(ini, "00:00")).getTime();
+  const P = Object.fromEntries(funcionarios(loja).map(([id, f]) => [id, { id, nome: f.nome, funcao: f.funcao || "", abertas: 0, carga: 0, atrasadas: 0, aprovadas: 0, pontos: 0, envios: 0, noPrazo: 0, correcoes: 0, minutos: [], razoes: [], selos: [] }]));
+  for (const t of [...tarefasHoje(loja), ...tarefasMes(loja)]) {
+    if (concluida(t) || t.status === "enviada") continue; const eq = resps(t);
+    for (const id of eq) if (P[id]) { P[id].abertas++; P[id].carga += (t.peso || 1) / eq.length; if (statusVisivel(t) === "atrasada") P[id].atrasadas++; }
+  }
+  const envs = [];
+  for (const t of tarefasHist(loja)) for (const [k, x] of Object.entries(t.tentativas || {})) {
+    if (!x.envio || new Date(x.envio).getTime() < iniMs) continue;
+    const dur = (new Date(x.envio) - new Date(x.inicio)) / 60000;
+    envs.push({ t, x, k: Number(k), eq: equipeTentativa(x), dur: isFinite(dur) && dur >= 0 ? Math.min(dur, 720) : null });
+  }
+  const porRot = {}; for (const e of envs) if (e.t.tipo === "mensal" && e.t.rotina && e.dur != null) (porRot[e.t.rotina] ||= []).push(e.dur);
+  const normalMes = Object.fromEntries(Object.entries(porRot).filter(([, v]) => v.length >= 3).map(([k, v]) => [k, mediana(v)]));
+  const base = (t) => t.tipo === "mensal" ? normalMes[t.rotina] || null : Math.max(15, (new Date(t.prazo) - new Date(t.inicio)) / 60000);
+  for (const e of envs) { const b = e.dur != null ? base(e.t) : null; e.razao = b ? e.dur / b : null; }
+  const todas = envs.map((e) => e.razao).filter((v) => v != null); const mLoja = todas.length >= 5 ? mediana(todas) : null;
+  for (const e of envs) {
+    const aprov = e.t.status === "aprovada" && e.k === e.t.n; const corr = e.x.revisao?.decisao === "reprovada"; const noPrazo = new Date(e.x.envio) <= new Date(e.t.prazo);
+    for (const id of e.eq) { const p = P[id]; if (!p) continue; p.envios++; if (corr) p.correcoes++; if (aprov) { p.aprovadas++; p.pontos += (e.t.peso || 1) / e.eq.length; if (noPrazo) p.noPrazo++; } if (e.dur != null) p.minutos.push(e.dur); if (e.razao != null) p.razoes.push(e.razao); }
+  }
+  const lista = Object.values(P); const n = lista.length || 1;
+  const mCarga = lista.reduce((a, p) => a + p.carga, 0) / n, mPts = lista.reduce((a, p) => a + p.pontos, 0) / n, totApr = lista.reduce((a, p) => a + p.aprovadas, 0);
+  for (const p of lista) {
+    p.tempo = mediana(p.minutos); p.indice = mLoja && p.razoes.length >= 2 ? mediana(p.razoes) / mLoja : null;
+    if (lista.length >= 2 && mCarga > 0) { if (p.carga >= 1.5 * mCarga && p.abertas >= 3) p.selos.push(["alta", "Muitas tarefas", I.alerta]); else if (p.carga <= 0.5 * mCarga) p.selos.push(["baixa", "Poucas tarefas", I.relogio]); }
+    if (lista.length >= 2 && totApr >= 3 && mPts > 0) { if (p.pontos >= 1.3 * mPts) p.selos.push(["bom", "Produção alta", I.ok]); else if (p.pontos <= 0.6 * mPts) p.selos.push(["ruim", "Produção baixa", I.alerta]); }
+    if (p.indice != null) { if (p.indice <= 0.8) p.selos.push(["bom", "Termina rápido", I.play]); else if (p.indice >= 1.25) p.selos.push(["ruim", "Demora para terminar", I.ampulheta]); }
+  }
+  return { lista, mCarga, mPts };
 }
 
 // ===========================================================================
@@ -477,10 +692,10 @@ async function processarFoto(file, t, x) {
   const img = await new Promise((ok, erro) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => erro(new Error("Não consegui abrir a foto. Tente tirar de novo.")); i.src = URL.createObjectURL(new Blob([buf], { type: file.type })); });
   const esc_ = Math.min(1, 1280 / Math.max(img.width, img.height)); const w = Math.round(img.width * esc_), h = Math.round(img.height * esc_);
   const cv = document.createElement("canvas"); cv.width = w; cv.height = h; const g = cv.getContext("2d"); g.drawImage(img, 0, 0, w, h); URL.revokeObjectURL(img.src);
-  carimbar(g, w, h, `${lojaNome(t.loja)} · ${dataHora(new Date().toISOString())} · ${nomeFunc(t.loja, x.por)}`);
+  carimbar(g, w, h, `${lojaNome(t.loja)} · ${dataHora(new Date().toISOString())} · ${nomeFunc(t.loja, S.quem)}`);
   let q = 0.74, url = cv.toDataURL("image/jpeg", q); while (url.length > 230000 && q > 0.35) { q -= 0.08; url = cv.toDataURL("image/jpeg", q); }
   if (url.length > 250000) throw new Error("A foto ficou grande demais. Tente de novo com menos zoom.");
-  const mid = uid("m_"); const base = { tipo: "foto", sha, loja: t.loja, tarefa: refDe(t), tentativa: t.n, por: x.por, capturadaEm: file.lastModified ? new Date(file.lastModified).toISOString() : null, enviadaEm: new Date().toISOString() };
+  const mid = uid("m_"); const base = { tipo: "foto", sha, loja: t.loja, tarefa: refDe(t), tentativa: t.n, por: S.quem, capturadaEm: file.lastModified ? new Date(file.lastModified).toISOString() : null, enviadaEm: new Date().toISOString() };
   const up = await subirArquivo(await (await fetch(url)).blob(), "image/jpeg");
   await S.db.doc(`midias/${mid}`).set(up ? { ...base, asset: up.id, mime: up.contentType } : { ...base, dataUrl: url });
   await atualizarTarefa(t, { tentativas: { [t.n]: { midias: { [mid]: { tipo: "foto" } } } } });
@@ -547,7 +762,7 @@ async function processarVideo(file, t, x, aoProgredir) {
   if (dur && dur > limite + 0.5) { URL.revokeObjectURL(url); throw new Error(`Grave um vídeo de até ${limite} segundos.`); }
   const poster = await posterDe(v); URL.revokeObjectURL(url);
   const buf = await file.arrayBuffer(); const sha = await sha256Hex(buf); await bloquearRepetida(sha);
-  const mid = uid("m_"); const base = { tipo: "video", sha, poster, dur, loja: t.loja, tarefa: refDe(t), tentativa: t.n, por: x.por, capturadaEm: file.lastModified ? new Date(file.lastModified).toISOString() : null, enviadaEm: new Date().toISOString() };
+  const mid = uid("m_"); const base = { tipo: "video", sha, poster, dur, loja: t.loja, tarefa: refDe(t), tentativa: t.n, por: S.quem, capturadaEm: file.lastModified ? new Date(file.lastModified).toISOString() : null, enviadaEm: new Date().toISOString() };
   const tipoDe = (b) => /webm/.test(b.type) ? "video/webm" : "video/mp4";
   let up = null;
   if (S.assets) {
@@ -595,10 +810,10 @@ function render() {
   if (ativo && root.contains(ativo) && ativo.closest("form") && /INPUT|TEXTAREA|SELECT/.test(ativo.tagName) && ativo.type !== "radio" && ativo.type !== "checkbox") { S.renderPendente = true; return; }
   if (drag?.ativo) { S.renderPendente = true; return; }
   const guard = {};
-  root.querySelectorAll("form[data-action] [name]").forEach((el) => { const k = el.closest("form").dataset.action + ":" + el.name + (el.type === "radio" ? ":" + el.value : ""); guard[k] = el.type === "checkbox" || el.type === "radio" ? el.checked : el.value; });
+  root.querySelectorAll("form[data-action] [name]").forEach((el) => { const k = el.closest("form").dataset.action + ":" + el.name + (el.type === "radio" || el.type === "checkbox" ? ":" + el.value : ""); guard[k] = el.type === "checkbox" || el.type === "radio" ? el.checked : el.value; });
   const sy = window.scrollY; const bl = $(".board")?.scrollLeft || 0;
   renderInterno();
-  root.querySelectorAll("form[data-action] [name]").forEach((el) => { const k = el.closest("form").dataset.action + ":" + el.name + (el.type === "radio" ? ":" + el.value : ""); if (k in guard && el.type !== "file") { if (el.type === "checkbox" || el.type === "radio") el.checked = guard[k]; else el.value = guard[k]; } });
+  root.querySelectorAll("form[data-action] [name]").forEach((el) => { const k = el.closest("form").dataset.action + ":" + el.name + (el.type === "radio" || el.type === "checkbox" ? ":" + el.value : ""); if (k in guard && el.type !== "file") { if (el.type === "checkbox" || el.type === "radio") el.checked = guard[k]; else el.value = guard[k]; } });
   const b = $(".board"); if (b) b.scrollLeft = bl; if (Math.abs(window.scrollY - sy) > 2) window.scrollTo(0, sy);
 }
 function renderInterno() {
@@ -611,11 +826,11 @@ function renderInterno() {
   if (!S.quem || (S.quem !== "gerencia" && !S.portais[loja]?.funcionarios?.[S.quem])) { S.quem = null; root.innerHTML = topo() + `<main><div class="wrap estreito">${telaQuem(loja)}</div></main>`; renderSheet(); renderModal(); renderMenu(); return; }
   if (S.quem === "gerencia") {
     if (!gerenciaLiberada(loja)) { root.innerHTML = topo() + `<main><div class="wrap estreito">${telaPin(loja)}</div></main>`; renderMenu(); setTimeout(() => $("#pinEntrada")?.focus(), 30); return; }
-    const itens = [{ id: "quadro", l: "Quadro", ic: "quadro" }, { id: "aprovar", l: "Aprovar", ic: "aprovar", n: fila(loja).length }, { id: "equipe", l: "Equipe", ic: "equipe" }, { id: "mais", l: "Mais", ic: "mais" }];
-    if (!["quadro", "aprovar", "equipe", "mais", "rotinas", "painel", "nova"].includes(S.tela)) S.tela = "quadro";
+    const itens = [{ id: "inicio", l: "Início", ic: "inicio" }, { id: "quadro", l: "Quadro", ic: "quadro" }, { id: "aprovar", l: "Aprovar", ic: "aprovar", n: fila(loja).length }, { id: "equipe", l: "Equipe", ic: "equipe" }, { id: "mais", l: "Mais", ic: "mais" }];
+    if (!["inicio", "quadro", "aprovar", "equipe", "mais", "rotinas", "painel", "nova"].includes(S.tela)) S.tela = "inicio";
     const atual = ["rotinas", "painel"].includes(S.tela) ? "mais" : S.tela === "nova" ? "quadro" : S.tela;
     root.innerHTML = topo() + `<nav class="nav" aria-label="Navegação"><div class="wrap">${itens.map((a) => `<button data-action="tela" data-tela="${a.id}" ${atual === a.id ? 'aria-current="page"' : ""}>${I[a.ic]}<span>${a.l}</span>${a.n ? `<span class="n num" aria-label="${a.n} para aprovar">${a.n}</span>` : ""}</button>`).join("")}</div></nav>`
-      + `<main class="com-nav"><div class="wrap ${S.tela === "quadro" ? "" : "estreito"}">${telaGerencia(loja)}</div></main>`;
+      + `<main class="com-nav"><div class="wrap ${["quadro", "inicio"].includes(S.tela) ? "" : "estreito"}">${telaGerencia(loja)}</div></main>`;
   } else root.innerHTML = topo() + `<main><div class="wrap estreito">${telaFuncionario(loja, S.quem)}</div></main>`;
   renderSheet(); renderModal(); renderMenu();
 }
@@ -636,7 +851,7 @@ function renderMenu() {
 }
 function vazio(t, d, acao = "", ok = true) { return `<div class="vazio">${ok ? `<span class="ic">${I.check}</span>` : ""}<h2>${esc(t)}</h2><p>${esc(d)}</p>${acao}</div>`; }
 function telaErro() {
-  const m = { fora: ["Abra pelo link do Éde Gestão", "Este site funciona dentro do claude.ai. Abra o link que a proprietária compartilhou."], semdb: ["Não consegui carregar os dados", "Recarregue a página. Se continuar, confira se você está com a conta certa no claude.ai."], revogado: ["Seu acesso mudou", "Recarregue a página para continuar."] }[S.erroGeral] || ["Algo deu errado", "Recarregue a página."];
+  const m = { fora: ["Abra pelo link do Éde Gestão", "Este site funciona dentro do claude.ai. Abra o link que a proprietária compartilhou."], semdb: ["Não consegui carregar os dados", "Recarregue a página. Se continuar, confira se você está com a conta certa no claude.ai."], revogado: ["Seu acesso mudou", "Recarregue a página para continuar."], local: ["Não consegui abrir os dados deste aparelho", "O navegador bloqueou o armazenamento. Abra o arquivo no Chrome, Edge ou Safari, fora da janela anônima."] }[S.erroGeral] || ["Algo deu errado", "Recarregue a página."];
   return vazio(m[0], m[1], "", false);
 }
 
@@ -647,7 +862,7 @@ function resumoLoja(l) {
 }
 function telaPortais() {
   const lojas = Object.keys(S.org.lojas).sort((a, b) => (S.org.lojas[a].ordem || 0) - (S.org.lojas[b].ordem || 0));
-  return `<section class="pilha"><h1>Escolha o portal da loja</h1><p class="soft">Cada loja tem a sua equipe, o seu quadro de tarefas e as suas aprovações.</p></section>
+  return `<section class="pilha"><h1>Escolha o portal da loja</h1><p class="soft">Cada loja tem a sua equipe, o seu quadro de tarefas e as suas aprovações.</p>${S.local ? `<p class="aviso-local">Modo local: os dados ficam só neste aparelho. Faça cópia em Gerência › Mais.</p>` : ""}</section>
     <div class="portais">${lojas.map((l) => { const r = resumoLoja(l); const temDados = S.diarias[docId(l, hoje())];
       return `<button class="portal" data-action="entrarPortal" data-loja="${esc(l)}"><span class="pt"><span class="pi"><img src="img/ede-icone-app.svg" alt=""></span><span><span class="soft small">Portal da loja</span><h2>${esc(lojaNome(l))}</h2></span></span>
       ${temDados ? `<span class="nums num"><span><b>${r.fazer}</b>a fazer</span><span><b>${r.aprovar}</b>para aprovar</span><span class="${r.atrasadas ? "ruim" : ""}"><b>${r.atrasadas}</b>atrasadas</span></span>` : `<span class="soft small">${funcionarios(l).length} funcionários</span>`}
@@ -658,7 +873,7 @@ function telaPortais() {
 // --- Quem está usando ------------------------------------------------------
 function telaQuem(loja) {
   const fs = funcionarios(loja); const pin = !!S.portais[loja]?.pinHash;
-  const conta = (id) => [...tarefasHoje(loja), ...tarefasMes(loja)].filter((t) => t.responsavel === id && !concluida(t) && t.status !== "enviada").length;
+  const conta = (id) => [...tarefasHoje(loja), ...tarefasMes(loja)].filter((t) => resps(t).includes(id) && !concluida(t) && t.status !== "enviada").length;
   return `<section class="pilha"><h1>Quem está usando?</h1><p class="soft">Toque no seu nome para ver as suas tarefas.</p></section>
     <div class="pessoas">${fs.map(([id, f]) => { const n = conta(id); return `<button class="pessoa" data-action="souEu" data-id="${esc(id)}"><span class="av" aria-hidden="true">${esc(iniciais(f.nome))}</span><b>${esc(f.nome)}</b><span>${esc(f.funcao || "")}</span>${n ? `<span class="cnt num">${n} ${n === 1 ? "tarefa" : "tarefas"}</span>` : ""}</button>`; }).join("")}
       <button class="pessoa g" data-action="souEu" data-id="gerencia"><span class="av" aria-hidden="true">${I.cadeado.replace("<svg", '<svg width="26" height="26"')}</span><b>Gerência</b><span>${pin ? "Pede o PIN" : "Quadro, aprovações e equipe"}</span></button></div>
@@ -674,15 +889,16 @@ function telaPin(loja) {
 // --- Funcionário -----------------------------------------------------------
 function telaFuncionario(loja, fid) {
   const f = S.portais[loja].funcionarios[fid]; const nome = f.nome.replace(/\s*\(exemplo\)/i, "");
-  const minhas = (ts) => ts.filter((t) => t.status !== "cancelada" && (t.responsavel === fid || (!t.responsavel && !concluida(t)) || Object.values(t.tentativas || {}).some((x) => x.por === fid)));
+  const minhas = (ts) => ts.filter((t) => t.status !== "cancelada" && (resps(t).includes(fid) || (!resps(t).length && !concluida(t)) || Object.values(t.tentativas || {}).some((x) => participa(x, fid))));
+  const meu = (t) => resps(t).includes(fid); const aFazer = (t) => meu(t) && !concluida(t) && t.status !== "enviada";
   const lista = S.escopo === "mes" ? minhas(tarefasMes(loja)) : minhas(tarefasHoje(loja));
   const ord = (a, b) => new Date(a.prazo) - new Date(b.prazo);
-  const minhasAbertas = lista.filter((t) => t.responsavel === fid && !concluida(t) && t.status !== "enviada").sort(ord);
-  const livres = lista.filter((t) => !t.responsavel && !concluida(t) && t.status !== "enviada").sort(ord);
-  const enviadas = lista.filter((t) => t.responsavel === fid && (concluida(t) || t.status === "enviada")).sort(ord);
-  const total = lista.filter((t) => t.responsavel === fid).length, ok = lista.filter((t) => t.responsavel === fid && t.status === "aprovada").length;
-  const nHoje = minhas(tarefasHoje(loja)).filter((t) => t.responsavel === fid && !concluida(t) && t.status !== "enviada").length, nMes = minhas(tarefasMes(loja)).filter((t) => t.responsavel === fid && !concluida(t) && t.status !== "enviada").length;
-  const foco = minhasAbertas.find((t) => tentativaAtual(t)?.por === fid && !tentativaAtual(t)?.envio && !tentativaAtual(t)?.encerrada) || minhasAbertas.find((t) => t.status === "correcao") || minhasAbertas[0];
+  const minhasAbertas = lista.filter(aFazer).sort(ord);
+  const livres = lista.filter((t) => !resps(t).length && !concluida(t) && t.status !== "enviada").sort(ord);
+  const enviadas = lista.filter((t) => meu(t) && (concluida(t) || t.status === "enviada")).sort(ord);
+  const total = lista.filter(meu).length, ok = lista.filter((t) => meu(t) && t.status === "aprovada").length;
+  const nHoje = minhas(tarefasHoje(loja)).filter(aFazer).length, nMes = minhas(tarefasMes(loja)).filter(aFazer).length;
+  const foco = minhasAbertas.find((t) => podeEditar(t, fid)) || minhasAbertas.find((t) => t.status === "correcao") || minhasAbertas[0];
   return `<section class="pilha"><h1>Olá, ${esc(nome)}</h1><p class="soft">${esc(lojaNome(loja))} · ${esc(new Intl.DateTimeFormat("pt-BR", { timeZone: TZ, weekday: "long", day: "2-digit", month: "2-digit" }).format(new Date()))}</p></section>
     <div class="seg" role="group" aria-label="Período"><button data-action="escopo" data-e="hoje" aria-pressed="${S.escopo !== "mes"}">Hoje <span class="num">(${nHoje})</span></button><button data-action="escopo" data-e="mes" aria-pressed="${S.escopo === "mes"}">Do mês <span class="num">(${nMes})</span></button></div>
     ${total ? `<div class="progresso"><b class="num">${ok} de ${total} aprovadas ${S.escopo === "mes" ? "no mês" : "hoje"}</b><div class="barra-p"><i style="width:${Math.round((ok / total) * 100)}%"></i></div></div>` : ""}
@@ -693,7 +909,8 @@ function telaFuncionario(loja, fid) {
 function quando(t) { return t.tipo === "mensal" ? `até ${dataCurta(t.prazo)}` : `${hm(t.inicio)}–${hm(t.prazo)}`; }
 function linhaFunc(t, foco) {
   const s = statusVisivel(t); const x = tentativaAtual(t);
-  const sub = s === "correcao" && x?.revisao?.motivo ? "Corrigir: " + x.revisao.motivo : resumir(t.instrucoes, 72);
+  const outros = resps(t).filter((id) => id !== S.quem); const junto = outros.length && resps(t).includes(S.quem) ? `Com ${nomesLista(t.loja, outros)}. ` : "";
+  const sub = junto + (s === "correcao" && x?.revisao?.motivo ? "Corrigir: " + x.revisao.motivo : aberta(x) && !participa(x, S.quem) && resps(t).includes(S.quem) ? `${nomesLista(t.loja, equipeTentativa(x))} já começou.` : resumir(t.instrucoes, 72));
   return `<button class="lt ${foco ? "foco" : ""} ${s === "atrasada" && foco ? "atr" : ""} ${concluida(t) || t.status === "enviada" ? "feita" : ""}" data-action="abrir" data-ref="${esc(refDe(t))}">
     <span class="h num">${t.tipo === "mensal" ? dataCurta(t.prazo) : hm(t.inicio)}<small>${t.tipo === "mensal" ? "prazo" : "até " + hm(t.prazo)}</small></span><span><span class="tt">${esc(t.titulo)}</span><span class="m">${esc(sub)}</span></span>${badge(s)}</button>`;
 }
@@ -701,6 +918,7 @@ function linhaFunc(t, foco) {
 // --- Gerência ---------------------------------------------------------------
 function telaGerencia(loja) {
   switch (S.tela) {
+    case "inicio": return telaInicio(loja);
     case "quadro": return telaQuadro(loja);
     case "nova": return telaNova(loja);
     case "aprovar": return telaAprovar(loja);
@@ -711,43 +929,97 @@ function telaGerencia(loja) {
   }
   return "";
 }
+function telaInicio(loja) {
+  carregarHistorico(loja);
+  const h = S.hist[loja]; const per = S.periodoEq === 30 ? 30 : 7;
+  const ts = [...tarefasHoje(loja), ...tarefasMes(loja)].filter((t) => t.status !== "cancelada");
+  const abertas = ts.filter((t) => !concluida(t) && t.status !== "enviada").length, atrasadas = ts.filter((t) => statusVisivel(t) === "atrasada").length;
+  const semResp = ts.filter((t) => !resps(t).length && !concluida(t) && t.status !== "enviada").length, aprovar = fila(loja).length;
+  const kpi = (v, k, d, ruim, tela) => `<button class="kpi ${ruim ? "ruim" : ""}" style="text-align:left;cursor:pointer;font:inherit;color:inherit" data-action="tela" data-tela="${tela}"><span class="v num">${v}</span><span class="k">${k}</span><span class="d">${d}</span></button>`;
+  return `<div class="linha entre"><h1>Início</h1><span class="soft">${esc(lojaNome(loja))} · ${esc(new Intl.DateTimeFormat("pt-BR", { timeZone: TZ, weekday: "long", day: "2-digit", month: "2-digit" }).format(new Date()))}</span></div>
+    <div class="kpis">${kpi(abertas, "Abertas agora", "hoje e do mês", false, "quadro")}${kpi(aprovar, "Para aprovar", "esperando você", false, "aprovar")}${kpi(atrasadas, "Atrasadas", "passou do prazo", atrasadas > 0, "quadro")}${kpi(semResp, "Sem responsável", "em A distribuir", semResp > 0, "quadro")}</div>
+    <section class="pilha"><div class="linha entre"><h2>Precisa de atenção</h2>${h?.estado === "ok" || h?.estado === "erro" ? `<button class="btn ghost sm" data-action="atualizarHist">Atualizar</button>` : ""}</div>${blocoAtencao(loja, h)}</section>
+    <section class="pilha"><div class="linha entre"><h2>Desempenho da equipe</h2><div class="seg" role="group" aria-label="Período"><button data-action="periodoEq" data-p="7" aria-pressed="${per === 7}">7 dias</button><button data-action="periodoEq" data-p="30" aria-pressed="${per === 30}">30 dias</button></div></div>${blocoEquipe(loja, h, per)}</section>`;
+}
+function blocoAtencao(loja, h) {
+  if (!h || h.estado === "carregando") return `<div class="carregando" aria-label="Analisando a rotina"><div class="sk"></div><div class="sk"></div></div>`;
+  if (h.estado === "erro") return `<p class="cartao">Não consegui ler o histórico da loja. Confira a internet e toque em Atualizar.</p>`;
+  const al = analisarRotina(loja);
+  if (!al.length) return `<div class="vazio"><span class="ic">${I.check}</span><h3>Rotina em dia</h3><p>Nada parado há mais tempo que o combinado nos últimos ${DIAS_HIST} dias.</p></div>`;
+  const ver = S.todosAlertas ? al : al.slice(0, 6); const rot = { alta: "Urgente", media: "Atenção", info: "Para observar" }; const ic = { alta: I.alerta, media: I.relogio, info: I.ajuda.replace("<svg", '<svg width="16" height="16"') };
+  const botao = (a) => !a ? "" : a.tipo === "abrir" ? `<button class="btn secondary sm" data-action="abrir" data-ref="${esc(a.ref)}">${esc(a.l)}</button>` : a.tipo === "porHoje" ? `<button class="btn secondary sm" data-action="porHoje" data-rot="${esc(a.rid)}">${esc(a.l)}</button>` : `<button class="btn secondary sm" data-action="novaCom" data-titulo="${esc(a.titulo)}" data-instr="${esc(a.instr)}">${esc(a.l)}</button>`;
+  return `<div class="atencao">${ver.map((a) => `<div class="alr ${a.nivel}"><span class="ic" aria-hidden="true">${ic[a.nivel]}</span><div class="tx"><span class="nv">${rot[a.nivel]}</span><b>${esc(a.txt)}</b><span class="d">${esc(a.det)}</span>${a.acao ? `<div class="acoes">${botao(a.acao)}</div>` : ""}</div></div>`).join("")}</div>
+    ${al.length > 6 ? `<button class="btn ghost sm" data-action="todosAlertas" style="justify-self:start">${S.todosAlertas ? "Mostrar menos" : `Ver todos (${al.length})`}</button>` : ""}`;
+}
+function blocoEquipe(loja, h, per) {
+  if (per === 30 && h?.estado !== "ok") return h?.estado === "erro" ? `<p class="cartao">Sem o histórico, só dá para ver os últimos 7 dias.</p>` : `<div class="carregando"><div class="sk"></div><div class="sk"></div></div>`;
+  const { lista } = desempenho(loja, per);
+  if (!lista.length) return vazio("Nenhum funcionário ainda", "Cadastre a equipe em Equipe para ver o desempenho de cada pessoa.", "", false);
+  const nm = (p) => p.nome.replace(/\s*\(exemplo\)/i, ""); const pts = (v) => String(Math.round(v * 10) / 10).replace(".", ",");
+  const maxCarga = Math.max(...lista.map((p) => p.carga), 0.0001), maxPts = Math.max(...lista.map((p) => p.pontos), 0.0001);
+  const dest = [];
+  if (lista.length >= 2) {
+    const porCarga = [...lista].sort((a, b) => b.carga - a.carga || b.abertas - a.abertas);
+    const [mais, menos] = [porCarga[0], porCarga.at(-1)];
+    if (mais.abertas - menos.abertas >= 2 && mais.carga >= 1.3 * menos.carga) { dest.push(["Mais tarefas abertas", nm(porCarga[0]), `${porCarga[0].abertas} abertas agora`]); dest.push(["Menos tarefas abertas", nm(porCarga.at(-1)), `${porCarga.at(-1).abertas} abertas agora`]); }
+    const porPts = [...lista].sort((a, b) => b.pontos - a.pontos); if (porPts[0].pontos > 0) dest.push(["Mais produção", nm(porPts[0]), `${porPts[0].aprovadas} aprovadas · ${pts(porPts[0].pontos)} pts`]);
+    const ritmo = lista.filter((p) => p.indice != null).sort((a, b) => a.indice - b.indice);
+    if (ritmo.length >= 2 && ritmo[0].indice < ritmo.at(-1).indice) { dest.push(["Termina mais rápido", nm(ritmo[0]), `${Math.round((1 - ritmo[0].indice) * 100)}% mais rápido que a média`]); dest.push(["Demora mais", nm(ritmo.at(-1)), `${Math.round((ritmo.at(-1).indice - 1) * 100)}% mais lento que a média`]); }
+  }
+  const ritmoTxt = (p) => p.indice == null ? "Ainda sem envios suficientes para comparar o tempo." : Math.abs(p.indice - 1) < 0.1 ? "Termina no ritmo médio da loja." : p.indice < 1 ? `Termina ${Math.round((1 - p.indice) * 100)}% mais rápido que a média da loja.` : `Leva ${Math.round((p.indice - 1) * 100)}% mais tempo que a média da loja.`;
+  const ordenada = [...lista].sort((a, b) => b.carga - a.carga || a.nome.localeCompare(b.nome));
+  return `${dest.length ? `<div class="destaques">${dest.map(([k, n, d]) => `<div class="dest"><span class="k">${esc(k)}</span><b>${esc(n)}</b><span class="d num">${esc(d)}</span></div>`).join("")}</div>` : ""}
+    <div class="eqs">${ordenada.map((p) => `<article class="pd"><div class="cabp"><span class="av" aria-hidden="true">${esc(iniciais(p.nome))}</span><div style="flex:1;min-width:0"><b>${esc(p.nome)}</b><span class="f">${esc(p.funcao)}</span></div><button class="btn ghost sm" data-action="verPessoa" data-id="${esc(p.id)}">Ver no quadro</button></div>
+      ${p.selos.length ? `<div class="selos">${p.selos.map(([c, l, i]) => `<span class="selo ${c}">${i}${esc(l)}</span>`).join("")}</div>` : ""}
+      <div class="med"><div class="lin"><span>Abertas agora</span><b>${p.abertas}${p.atrasadas ? ` (${p.atrasadas} atrasada${p.atrasadas > 1 ? "s" : ""})` : ""}</b></div><div class="medb" title="${p.abertas} abertas, ${pts(p.carga)} pontos de carga"><i class="${p.carga ? "" : "zero"}" style="width:${Math.round((p.carga / maxCarga) * 100)}%"></i></div></div>
+      <div class="med"><div class="lin"><span>Aprovadas em ${per} dias</span><b>${p.aprovadas} · ${pts(p.pontos)} pts</b></div><div class="medb" title="${p.aprovadas} aprovadas, ${pts(p.pontos)} pontos"><i class="${p.pontos ? "" : "zero"}" style="width:${Math.round((p.pontos / maxPts) * 100)}%"></i></div></div>
+      <div class="med2"><div><span>Tempo para terminar</span><b>${fmtMin(p.tempo)}</b></div><div><span>No prazo</span><b>${p.aprovadas ? Math.round((p.noPrazo / p.aprovadas) * 100) + "%" : "—"}</b></div><div><span>Correções pedidas</span><b>${p.correcoes}</b></div></div>
+      <p class="soft small">${esc(ritmoTxt(p))}</p></article>`).join("")}</div>
+    <details class="cartao"><summary style="cursor:pointer;font-weight:700;min-height:44px;display:flex;align-items:center">Ver em tabela e como é calculado</summary>
+      <div class="tabela"><table><thead><tr><th>Pessoa</th><th class="n">Abertas</th><th class="n">Atrasadas</th><th class="n">Aprovadas</th><th class="n">Pontos</th><th class="n">Tempo (mediana)</th><th class="n">Ritmo</th><th class="n">No prazo</th><th class="n">Correções</th></tr></thead>
+      <tbody>${ordenada.map((p) => `<tr><td>${esc(p.nome)}</td><td class="n">${p.abertas}</td><td class="n">${p.atrasadas}</td><td class="n">${p.aprovadas}</td><td class="n">${pts(p.pontos)}</td><td class="n">${fmtMin(p.tempo)}</td><td class="n">${p.indice == null ? "—" : String(Math.round(p.indice * 100) / 100).replace(".", ",") + "×"}</td><td class="n">${p.aprovadas ? Math.round((p.noPrazo / p.aprovadas) * 100) + "%" : "—"}</td><td class="n">${p.correcoes}</td></tr>`).join("")}</tbody></table></div>
+      <ul class="resp small"><li><span>•</span><span><b>Abertas agora</b>: tarefas de hoje e do mês ainda não enviadas. A barra usa o peso das tarefas; tarefa em equipe é dividida entre as pessoas.</span></li><li><span>•</span><span><b>Aprovadas e pontos</b>: tarefas aprovadas no período; os pontos são o peso da tarefa, divididos entre quem fez junto.</span></li><li><span>•</span><span><b>Tempo para terminar</b>: do Começar até o envio. O <b>ritmo</b> divide esse tempo pelo tempo que a tarefa tinha (horário da tarefa; nas do mês, o tempo normal daquela rotina) e compara com a média da loja: 1,0× é a média, abaixo é mais rápido. Precisa de 5 envios na loja e 2 da pessoa.</span></li><li><span>•</span><span><b>Muitas / poucas tarefas</b>: carga 50% acima ou abaixo da média da equipe. <b>Produção alta / baixa</b>: pontos 30% acima ou 40% abaixo da média.</span></li></ul></details>`;
+}
 function voltar(tela) { return `<div><button class="btn ghost sm" data-action="tela" data-tela="${tela}" style="padding-left:0">${I.setaE}Voltar</button></div>`; }
 function telaQuadro(loja) {
   const mes = S.escopo === "mes"; const ts = (mes ? tarefasMes(loja) : tarefasHoje(loja));
   const filtrada = ts.filter((t) => { const s = statusVisivel(t); if (!S.filtro) return t.status !== "cancelada"; if (S.filtro === "fazer") return ["pendente", "andamento", "correcao"].includes(s); if (S.filtro === "concluidas") return concluida(t); return s === S.filtro; });
   const conta = (f) => ts.filter((t) => { const s = statusVisivel(t); return f === "fazer" ? ["pendente", "andamento", "correcao"].includes(s) : s === f; }).length;
   const cols = [["", "A distribuir", null], ...funcionarios(loja).map(([id, f]) => [id, f.nome, f.funcao])];
+  // Tarefa em equipe aparece na coluna de cada pessoa; quem não tem coluna (inativo) cai em A distribuir.
+  const comColuna = new Set(cols.map(([id]) => id)); const colunasDe = (t) => { const r = resps(t).filter((id) => comColuna.has(id)); return r.length ? r : [""]; };
   const ord = (a, b) => (concluida(a) - concluida(b)) || (new Date(a.prazo) - new Date(b.prazo));
   const dicaVista = local.get("ede.dicaQuadro");
   return `<div class="linha entre"><h1>Quadro</h1><button class="btn primary sm" data-action="tela" data-tela="nova">${I.mais1}Nova tarefa</button></div>
     <div class="linha entre"><div class="seg" role="group" aria-label="Período"><button data-action="escopo" data-e="hoje" aria-pressed="${!mes}">Diárias de hoje</button><button data-action="escopo" data-e="mes" aria-pressed="${mes}">Do mês (${esc(nomeMes(mesAtual()))})</button></div></div>
     <div class="chips" role="group" aria-label="Filtro"><button class="chip" data-action="filtro" data-f="" aria-pressed="${!S.filtro}">Todas</button><button class="chip" data-action="filtro" data-f="fazer" aria-pressed="${S.filtro === "fazer"}">A fazer <span class="num">${conta("fazer")}</span></button><button class="chip" data-action="filtro" data-f="enviada" aria-pressed="${S.filtro === "enviada"}">Para aprovar <span class="num">${conta("enviada")}</span></button><button class="chip" data-action="filtro" data-f="atrasada" aria-pressed="${S.filtro === "atrasada"}">Atrasadas <span class="num">${conta("atrasada")}</span></button><button class="chip" data-action="filtro" data-f="concluidas" aria-pressed="${S.filtro === "concluidas"}">Concluídas</button></div>
-    ${dicaVista ? "" : `<p class="dica">${I.mao}<span>Arraste o cartão até a coluna de quem vai fazer. No celular, segure o cartão por um instante e arraste. Também dá para tocar no cartão e escolher a pessoa.</span><button class="btn ghost sm" data-action="fecharDica" aria-label="Fechar dica">${I.x}</button></p>`}
-    <div class="irpara" role="group" aria-label="Ir para a coluna">${cols.map(([id, nome]) => `<button class="chip" data-action="irCol" data-col-id="${esc(id)}">${esc((id ? nome : "A distribuir").replace(/\s*\(exemplo\)/i, ""))} <span class="num">${filtrada.filter((t) => (t.responsavel || "") === id && !concluida(t)).length}</span></button>`).join("")}</div>
-    <div class="board" role="list" aria-label="Quadro de tarefas">${cols.map(([id, nome, funcao]) => { const lista = filtrada.filter((t) => (t.responsavel || "") === id).sort(ord);
+    ${dicaVista ? "" : `<p class="dica">${I.mao}<span>Arraste o cartão até a coluna de quem vai fazer (no celular, segure o cartão um instante e arraste). Para a tarefa ter mais de uma pessoa, toque no cartão e marque todas.</span><button class="btn ghost sm" data-action="fecharDica" aria-label="Fechar dica">${I.x}</button></p>`}
+    <div class="irpara" role="group" aria-label="Ir para a coluna">${cols.map(([id, nome]) => `<button class="chip" data-action="irCol" data-col-id="${esc(id)}">${esc((id ? nome : "A distribuir").replace(/\s*\(exemplo\)/i, ""))} <span class="num">${filtrada.filter((t) => colunasDe(t).includes(id) && !concluida(t)).length}</span></button>`).join("")}</div>
+    <div class="board" role="list" aria-label="Quadro de tarefas">${cols.map(([id, nome, funcao]) => { const lista = filtrada.filter((t) => colunasDe(t).includes(id)).sort(ord);
       return `<section class="col" data-col="${esc(id)}" role="listitem" aria-label="${esc(id ? nome : "A distribuir")}"><div class="ch ${id ? "" : "livre"}"><span class="av" aria-hidden="true">${id ? esc(iniciais(nome)) : I.mais1.replace("<svg", '<svg width="18" height="18"')}</span><span><b>${esc(nome)}</b><span class="num">${lista.filter((t) => !concluida(t)).length} abertas${funcao ? " · " + esc(funcao) : ""}</span></span></div>
-        ${lista.map((t) => kcard(t)).join("") || `<div class="drop-vazio">${id ? "Arraste uma tarefa para cá" : "Nada sem responsável"}</div>`}</section>`; }).join("")}</div>
+        ${lista.map((t) => kcard(t, id)).join("") || `<div class="drop-vazio">${id ? "Arraste uma tarefa para cá" : "Nada sem responsável"}</div>`}</section>`; }).join("")}</div>
     ${funcionarios(loja).length ? "" : `<p class="soft">Cadastre a equipe em Equipe para distribuir as tarefas.</p>`}`;
 }
-function kcard(t) {
+function kcard(t, col) {
   const s = statusVisivel(t); const trava = ["enviada", "aprovada", "cancelada"].includes(t.status); const x = tentativaAtual(t);
-  const nm = midiasDe(x).length; const ni = Object.keys(t.itens || {}).length;
-  return `<button class="kcard ${trava ? "lock" : ""} ${concluida(t) ? "feita" : ""}" data-kcard data-ref="${esc(refDe(t))}" ${trava ? 'data-lock="1"' : ""} data-action="abrir" aria-label="${esc(t.titulo)}, ${esc(STATUS[s].l)}">
-    <span class="kt">${esc(t.titulo)}</span><span class="km num"><span>${esc(quando(t))}</span>${ni ? `<span>${ni} itens</span>` : ""}${nm ? `<span>${nm} ${nm === 1 ? "mídia" : "mídias"}</span>` : ""}${t.rotina ? "" : "<span>avulsa</span>"}</span>${badge(s)}</button>`;
+  const nm = midiasDe(x).length; const ni = Object.keys(t.itens || {}).length; const eq = resps(t); const outros = eq.filter((id) => id !== col);
+  const equipe = eq.length > 1 || (!col && eq.length) ? `<span class="keq">${I.equipe.replace("<svg", '<svg width="16" height="16"')}<span>${col ? "Com " + esc(nomesLista(t.loja, outros)) : esc(nomesLista(t.loja, eq)) + " (sem coluna)"}</span></span>` : "";
+  return `<button class="kcard ${trava ? "lock" : ""} ${concluida(t) ? "feita" : ""}" data-kcard data-ref="${esc(refDe(t))}" data-de="${esc(col || "")}" ${trava ? 'data-lock="1"' : ""} data-action="abrir" aria-label="${esc(t.titulo)}, ${esc(STATUS[s].l)}${eq.length > 1 ? ", em equipe: " + esc(nomesLista(t.loja, eq)) : ""}">
+    <span class="kt">${esc(t.titulo)}</span>${equipe}<span class="km num"><span>${esc(quando(t))}</span>${ni ? `<span>${ni} itens</span>` : ""}${nm ? `<span>${nm} ${nm === 1 ? "mídia" : "mídias"}</span>` : ""}${t.rotina ? "" : "<span>avulsa</span>"}</span>${badge(s)}</button>`;
 }
 function telaNova(loja) {
   const fs = funcionarios(loja); const mes = S.escopo === "mes"; const ag = Date.now(); const em = (h) => hm(new Date(ag + h * 3600e3).toISOString());
   return voltar("quadro") + `<h1>Nova tarefa</h1><form class="form" data-action="criar">
-    <label class="f">O que precisa ser feito?<input type="text" name="titulo" maxlength="120" placeholder="Ex.: Montar ilha de panelas na entrada"></label>
+    <label class="f">O que precisa ser feito?<input type="text" name="titulo" maxlength="120" placeholder="Ex.: Montar ilha de panelas na entrada" value="${esc(S.novaPre?.titulo || "")}"></label>
     <fieldset style="border:0;padding:0;margin:0;display:grid;gap:8px"><legend style="font-weight:700;margin-bottom:6px">Que tipo de tarefa?</legend><div class="chips">
       <label class="chip"><input type="radio" name="tipo" value="diaria" ${mes ? "" : "checked"}> Diária (hoje)</label><label class="chip"><input type="radio" name="tipo" value="mensal" ${mes ? "checked" : ""}> Do mês</label></div></fieldset>
     <fieldset style="border:0;padding:0;margin:0;display:grid;gap:8px"><legend style="font-weight:700;margin-bottom:6px">Até quando?</legend>
       <div class="chips" data-so="diaria">${[["1", "Em 1 hora (" + em(1) + ")"], ["2", "Em 2 horas (" + em(2) + ")"], ["18", "Até 18:00"], ["outro", "Outro horário"]].map(([v, l], i) => `<label class="chip"><input type="radio" name="prazoDia" value="${v}" ${i === 1 ? "checked" : ""}> ${esc(l)}</label>`).join("")}</div>
       <label class="f" data-so="diaria">Outro horário (se escolheu acima)<input type="time" name="hora"></label>
       <label class="f" data-so="mensal">Data limite no mês<input type="date" name="dataMes" value="${esc(diaDoMes(mesAtual(), ultimoDia(mesAtual())))}" min="${esc(hoje())}" max="${esc(diaDoMes(mesAtual(), ultimoDia(mesAtual())))}"></label></fieldset>
-    <fieldset style="border:0;padding:0;margin:0;display:grid;gap:8px"><legend style="font-weight:700;margin-bottom:6px">Quem vai fazer?</legend><div class="chips">
-      <label class="chip"><input type="radio" name="resp" value="" checked> Decidir depois</label>${fs.map(([id, f]) => `<label class="chip"><input type="radio" name="resp" value="${esc(id)}"> ${esc(f.nome)}</label>`).join("")}</div></fieldset>
-    <label class="f">Instruções (opcional)<textarea name="instrucoes" maxlength="1000" placeholder="Como fazer, onde, cuidados"></textarea></label>
+    <fieldset style="border:0;padding:0;margin:0;display:grid;gap:8px"><legend style="font-weight:700;margin-bottom:6px">Quem vai fazer?</legend><p class="soft small" style="margin-top:-4px">Marque uma ou mais pessoas. Sem ninguém marcado, a tarefa fica em A distribuir.</p><div class="chips">
+      ${fs.map(([id, f]) => `<label class="chip"><input type="checkbox" name="resp" value="${esc(id)}"> ${esc(f.nome)}</label>`).join("")}</div></fieldset>
+    <label class="f">Instruções (opcional)<textarea name="instrucoes" maxlength="1000" placeholder="Como fazer, onde, cuidados">${esc(S.novaPre?.instr || "")}</textarea></label>
     <label class="f">Itens para conferir (opcional, um por linha)<textarea name="itens" placeholder="Ilha montada no lugar combinado&#10;Preços colocados"></textarea></label>
     <label class="chk"><input type="checkbox" name="exigeMidia" checked> Pedir foto ou vídeo do que foi feito</label>
     <label class="chk"><input type="checkbox" name="exigeAprovacao" checked> A gerência aprova antes de concluir</label>
@@ -763,7 +1035,7 @@ function telaAprovar(loja) {
   const alerts = []; if (!enviadaNoPrazo(t)) alerts.push(`Enviada depois do prazo (${t.tipo === "mensal" ? dataCurta(t.prazo) : hm(t.prazo)}).`);
   mids.forEach((id) => { const m = cacheMidia[id]; if (m && m.capturadaEm && minDiff(m.capturadaEm, m.enviadaEm) > 10) alerts.push(`Uma mídia foi gravada em ${dataHora(m.capturadaEm)} e enviada em ${dataHora(m.enviadaEm)}.`); });
   return `<div class="linha entre"><h1>Aprovar</h1><div class="linha"><span class="soft num">${S.aprIdx + 1} de ${f.length}</span><button class="voltar" data-action="revnav" data-d="-1" aria-label="Anterior" ${S.aprIdx === 0 ? "disabled" : ""}>${I.setaE}</button><button class="voltar" data-action="revnav" data-d="1" aria-label="Próximo" ${S.aprIdx >= f.length - 1 ? "disabled" : ""}>${I.seta}</button></div></div>
-    <article class="pilha"><div><h2>${esc(t.titulo)}</h2><p class="soft">${esc(nomeFunc(loja, x.por))} · ${t.tipo === "mensal" ? "do mês" : "de hoje"} · enviada ${esc(dataHora(x.envio))}</p></div>
+    <article class="pilha"><div><h2>${esc(t.titulo)}</h2><p class="soft">${esc(nomesLista(loja, equipeTentativa(x), false))} · ${t.tipo === "mensal" ? "do mês" : "de hoje"} · enviada ${esc(dataHora(x.envio))}</p></div>
       ${alerts.map((a) => `<p class="alerta">${I.alerta}${esc(a)}</p>`).join("")}
       <div class="rev-grid"><div class="galeria">${mids.length ? mids.map((id) => miniMidia(id, false)).join("") : '<div class="cartao soft">Sem foto ou vídeo neste envio.</div>'}</div>
       <div class="pilha">${probs.length ? `<div class="box-prob"><b>${probs.length === 1 ? "1 item com problema" : probs.length + " itens com problema"}</b><ul class="resp">${probs.map(([iid, it]) => `<li>${I.alerta}<span>${esc(it.texto)}<br>“${esc(x.respostas[iid]?.obs || "")}”</span></li>`).join("")}</ul></div>` : ""}
@@ -773,7 +1045,7 @@ function telaAprovar(loja) {
 }
 function telaEquipe(loja) {
   const todos = funcionarios(loja, true); const pin = !!S.portais[loja]?.pinHash;
-  const abertas = (id) => [...tarefasHoje(loja), ...tarefasMes(loja)].filter((t) => t.responsavel === id && !concluida(t)).length;
+  const abertas = (id) => [...tarefasHoje(loja), ...tarefasMes(loja)].filter((t) => resps(t).includes(id) && !concluida(t)).length;
   return `<h1>Equipe da ${esc(lojaNome(loja))}</h1>
     <form class="form" data-action="addFunc"><h2>Cadastrar funcionário</h2><label class="f">Nome<input type="text" name="nome" maxlength="60" placeholder="Nome e sobrenome"></label>
       <label class="f">Função<select class="f" name="funcao">${Object.values(S.org.setores || {}).map((v) => `<option>${esc(v)}</option>`).join("")}<option>Outra</option></select></label>
@@ -783,17 +1055,21 @@ function telaEquipe(loja) {
       <form class="linha" data-action="salvarPin"><input type="password" name="novoPin" inputmode="numeric" maxlength="8" placeholder="Novo PIN (4 a 8 números)" style="flex:1;min-width:180px" autocomplete="off"><button class="btn secondary sm" type="submit">${pin ? "Trocar PIN" : "Criar PIN"}</button>${pin ? '<button class="btn ghost sm" type="button" data-action="tirarPin">Tirar PIN</button>' : ""}</form><p class="erro" id="erroPinCfg" role="alert"></p></section>`;
 }
 function telaMais(loja) {
-  const ops = [["rotinas", "Rotinas", "rotinas", "Tarefas que se repetem todo dia ou todo mês"], ["painel", "Painel da loja", "painel", "Aprovadas, atrasadas e nota da loja"]];
-  return `<h1>Mais</h1><div class="pilha">${ops.map(([id, l, ic, d]) => `<button class="lt" style="grid-template-columns:36px minmax(0,1fr) auto" data-action="tela" data-tela="${id}"><span style="color:var(--action);width:28px;height:28px">${I[ic]}</span><span><span class="tt">${l}</span><span class="m">${d}</span></span>${I.seta}</button>`).join("")}
+  const ops = [["rotinas", "Rotinas", "rotinas", "Tarefas que se repetem e a última vez de cada uma"], ["painel", "Painel da loja", "painel", "Aprovadas, atrasadas e nota da loja"]];
+  const copia = S.local ? `<section class="cartao"><h2>Cópia dos dados</h2><p class="soft">Neste modo os dados ficam só neste aparelho. Faça uma cópia de vez em quando e guarde em lugar seguro; com ela você também passa os dados para outro aparelho.</p>
+    <div class="linha"><button class="btn secondary" data-action="exportarLocal">Salvar cópia</button><label class="btn ghost" style="cursor:pointer">Restaurar cópia<input type="file" accept="application/json,.json" data-action="importarLocal" style="position:absolute;opacity:0;width:1px;height:1px"></label></div></section>` : "";
+  return `<h1>Mais</h1>${copia}<div class="pilha">${ops.map(([id, l, ic, d]) => `<button class="lt" style="grid-template-columns:36px minmax(0,1fr) auto" data-action="tela" data-tela="${id}"><span style="color:var(--action);width:28px;height:28px">${I[ic]}</span><span><span class="tt">${l}</span><span class="m">${d}</span></span>${I.seta}</button>`).join("")}
     <button class="lt" style="grid-template-columns:36px minmax(0,1fr) auto" data-action="ajuda"><span style="color:var(--action);width:28px;height:28px">${I.ajuda}</span><span><span class="tt">Como usar</span><span class="m">Passo a passo</span></span>${I.seta}</button>
     <button class="lt" style="grid-template-columns:36px minmax(0,1fr) auto" data-action="sairPortal"><span style="color:var(--action);width:28px;height:28px">${I.trocar}</span><span><span class="tt">Trocar de loja</span><span class="m">Voltar para a escolha do portal</span></span>${I.seta}</button></div>`;
 }
 function telaRotinas(loja) {
+  carregarHistorico(loja);
   const rs = Object.entries(S.rotinas).filter(([, r]) => r.lojas?.[loja]).sort((a, b) => ((a[1].tipo || "diaria").localeCompare(b[1].tipo || "diaria")) || (a[1].inicio || "").localeCompare(b[1].inicio || "") || ((a[1].dia || 0) - (b[1].dia || 0)));
-  const padrao = S.portais[loja]?.padrao || {}; const fs = funcionarios(loja);
-  return `<h1>Rotinas</h1><p class="soft">Criam as tarefas sozinhas: as diárias a cada dia e as do mês uma vez por mês. Escolha quem faz cada uma por padrão; vale a partir da próxima vez que a tarefa for criada.</p>
-    <div class="pilha">${rs.map(([id, r]) => `<article class="cartao"><div class="linha entre"><h3>${esc(r.titulo)}</h3><span class="tag">${(r.tipo || "diaria") === "mensal" ? "Do mês · dia " + esc(r.dia || ultimoDia(mesAtual())) : "Diária · " + esc(r.inicio) + "–" + esc(r.fim)}</span></div>
-      <label class="f small">Quem faz por padrão<select class="f" data-action="padrao" data-rot="${esc(id)}"><option value="">Decidir no quadro</option>${fs.map(([fid, f]) => `<option value="${esc(fid)}" ${padrao[id] === fid ? "selected" : ""}>${esc(f.nome)}</option>`).join("")}</select></label>
+  const fs = funcionarios(loja);
+  return `<h1>Rotinas</h1><p class="soft">Criam as tarefas sozinhas: as diárias a cada dia, as do mês uma vez por mês e as de “a cada N dias” quando passa esse tempo desde a última vez (e voltam todo dia até serem feitas). Escolha quem faz cada uma por padrão (uma ou mais pessoas); vale a partir da próxima vez que a tarefa for criada.</p>
+    <div class="pilha">${rs.map(([id, r]) => `<article class="cartao"><div class="linha entre"><h3>${esc(r.titulo)}</h3><span class="tag">${(r.tipo || "diaria") === "mensal" ? "Do mês · dia " + esc(r.dia || ultimoDia(mesAtual())) : r.tipo === "periodica" ? "A cada " + esc(r.cadaDias || 7) + " dias" : "Diária · " + esc(r.inicio) + "–" + esc(r.fim)}</span></div>
+      ${S.hist[loja]?.estado === "ok" ? (() => { const u = ultimaVez(loja, id); return `<p class="soft small">Última vez feita: ${u ? `${dataBR(u.data)} (${haDias(diasEntre(u.data, hoje()))})` : `sem registro em ${DIAS_HIST} dias`}</p>`; })() : ""}
+      <div class="pilha" style="gap:6px"><span class="small" style="font-weight:700">Quem faz por padrão</span><div class="chips" role="group" aria-label="Quem faz ${esc(r.titulo)} por padrão">${fs.map(([fid, f]) => `<button class="chip" data-action="padraoAlt" data-rot="${esc(id)}" data-id="${esc(fid)}" aria-pressed="${padraoDe(loja, id).includes(fid)}">${esc(f.nome)}</button>`).join("")}</div>${padraoDe(loja, id).length ? "" : '<span class="soft small">Ninguém: a tarefa nasce em A distribuir.</span>'}</div>
       <details><summary style="cursor:pointer;font-weight:700;min-height:44px;display:flex;align-items:center">${Object.keys(r.itens || {}).length} itens para conferir</summary><ul class="resp">${Object.values(r.itens || {}).sort((a, b) => a.ordem - b.ordem).map((it) => `<li><span>•</span><span>${esc(it.texto)}${it.critico ? ' <span class="tag crit">Crítico</span>' : ""}</span></li>`).join("")}</ul></details></article>`).join("") || vazio("Nenhuma rotina nesta loja", "As rotinas são configuradas pela proprietária.", "", false)}</div>`;
 }
 
@@ -848,7 +1124,7 @@ function renderSheet() {
 function cabFolha(t) { return `<div class="cab"><div class="wrap estreito"><button class="voltar" data-action="fechar" aria-label="Voltar">${I.voltar}</button><h2>${esc(t.titulo)}</h2>${badge(statusVisivel(t))}</div></div>`; }
 function infoTarefa(t) {
   const x = tentativaAtual(t);
-  return `<section class="info"><div class="q num"><span><b>${t.tipo === "mensal" ? "Do mês · até " + dataHora(t.prazo) : "Hoje · " + hm(t.inicio) + "–" + hm(t.prazo)}</b></span><span>${esc(lojaNome(t.loja))}</span></div>
+  return `<section class="info"><div class="q num"><span><b>${t.tipo === "mensal" ? "Do mês · até " + dataHora(t.prazo) : "Hoje · " + hm(t.inicio) + "–" + hm(t.prazo)}</b></span><span>${esc(lojaNome(t.loja))}</span><span>${resps(t).length > 1 ? "Em equipe: " : "Quem faz: "}<b>${esc(nomesLista(t.loja, resps(t)))}</b></span></div>
     <div class="tags">${t.exigeMidia ? '<span class="tag obr">Foto ou vídeo obrigatório</span>' : ""}${t.exigeAprovacao ? '<span class="tag">Gerência aprova</span>' : '<span class="tag">Aprovação automática</span>'}</div>
     ${t.status === "correcao" && x?.revisao?.motivo ? `<p class="aviso-cor">A gerência pediu correção: ${esc(x.revisao.motivo)}</p>` : ""}
     ${t.instrucoes ? `<p>${esc(t.instrucoes)}</p>` : ""}${t.cancelamento ? `<p class="soft">Cancelada: ${esc(t.cancelamento.motivo)}</p>` : ""}</section>`;
@@ -864,13 +1140,15 @@ function faltando(t) {
 }
 function resumoFalta(f) { const p = []; const i = f.filter((x) => x.tipo === "item").length; if (i) p.push(`${i} ${i === 1 ? "item" : "itens"}`); if (f.some((x) => x.tipo === "obsitem")) p.push("explicar o problema"); if (f.some((x) => x.tipo === "midia")) p.push("a foto ou o vídeo"); return p.length ? "Falta " + p.join(", ").replace(/, ([^,]*)$/, " e $1") : ""; }
 function folhaFuncionario(t) {
-  const fid = S.quem; const x = tentativaAtual(t);
-  const minha = x && x.por === fid && !x.envio && !x.encerrada; const editavel = minha && ["andamento", "correcao"].includes(t.status);
-  const podeComecar = !concluida(t) && t.status !== "enviada" && (t.responsavel === fid || !t.responsavel) && !minha;
+  const fid = S.quem; const x = tentativaAtual(t); const eq = resps(t);
+  const editavel = podeEditar(t, fid) && ["andamento", "correcao"].includes(t.status);
+  const podeAjudar = aberta(x) && !participa(x, fid) && eq.includes(fid) && !concluida(t) && t.status !== "enviada";
+  const podeComecar = !concluida(t) && t.status !== "enviada" && (eq.includes(fid) || !eq.length) && !aberta(x);
   const itens = Object.entries(t.itens || {}).sort((a, b) => (a[1].ordem || 0) - (b[1].ordem || 0));
   let acao = "";
   if (editavel) { const f = faltando(t); acao = `${f.length ? `<p class="falta-txt">${esc(resumoFalta(f))}</p>` : ""}<div class="bts"><button class="btn primary" data-action="enviar" ${S.enviando ? "disabled" : ""}>Enviar para aprovação</button></div>`; }
-  else if (podeComecar) acao = `<div class="bts"><button class="btn primary" data-action="comecar">${t.status === "correcao" ? "Corrigir agora" : t.responsavel ? "Começar" : "Pegar e começar"}</button></div>`;
+  else if (podeAjudar) acao = `<p class="falta-txt" style="color:var(--ink-soft)">${esc(nomesLista(t.loja, equipeTentativa(x)))} já começou. Entre para marcar itens e mandar foto ou vídeo junto.</p><div class="bts"><button class="btn primary" data-action="ajudar">Ajudar nesta tarefa</button></div>`;
+  else if (podeComecar) acao = `<div class="bts"><button class="btn primary" data-action="comecar">${t.status === "correcao" ? "Corrigir agora" : eq.length ? "Começar" : "Pegar e começar"}</button></div>`;
   const outras = Object.entries(t.tentativas || {}).sort((a, b) => b[0] - a[0]).filter(([k]) => !(editavel && Number(k) === t.n));
   return `<div class="folha" role="dialog" aria-modal="true" aria-label="${esc(t.titulo)}">${cabFolha(t)}<div class="wrap estreito corpo">${infoTarefa(t)}
     ${editavel ? `${itens.map(([iid, it], i) => itemEditavel(iid, it, i + 1, x)).join("")}
@@ -890,7 +1168,7 @@ function itemEditavel(iid, it, n, x) {
 }
 function resumoTentativa(t, x, k) {
   const itens = Object.entries(t.itens || {}).sort((a, b) => (a[1].ordem || 0) - (b[1].ordem || 0)); const rev = x.revisao; const mids = midiasDe(x);
-  return `<div class="cartao"><div class="linha entre"><b>Envio ${esc(k)}</b><span class="soft small">${esc(nomeFunc(t.loja, x.por))}${x.envio ? " · " + dataHora(x.envio) : x.encerrada ? " · passou para outra pessoa" : " · em andamento"}</span></div>
+  return `<div class="cartao"><div class="linha entre"><b>Envio ${esc(k)}</b><span class="soft small">${esc(nomesLista(t.loja, equipeTentativa(x), false))}${x.envio ? " · " + dataHora(x.envio) : x.encerrada ? " · passou para outra pessoa" : " · em andamento"}</span></div>
     ${mids.length ? `<div class="midias">${mids.map((id) => miniMidia(id, false)).join("")}</div>` : ""}
     ${itens.some(([iid]) => x.respostas?.[iid]) ? `<ul class="resp">${itens.map(([iid, it]) => { const r = x.respostas?.[iid]; return `<li>${r?.ok === true ? I.ok : r?.ok === false ? I.alerta : "<span>–</span>"}<span>${esc(it.texto)}${r?.ok === false ? `<br><span class="nc">Problema: ${esc(r.obs)}</span>` : ""}</span></li>`; }).join("")}</ul>` : ""}
     ${x.obs ? `<p><b>Comentário:</b> ${esc(x.obs)}</p>` : ""}
@@ -898,11 +1176,12 @@ function resumoTentativa(t, x, k) {
 }
 function folhaGerencia(t) {
   const fs = funcionarios(t.loja); const trava = ["enviada", "aprovada", "cancelada"].includes(t.status);
-  const padrao = t.rotina ? S.portais[t.loja]?.padrao?.[t.rotina] : null;
+  const eq = resps(t); const padrao = t.rotina ? padraoDe(t.loja, t.rotina) : []; const mesmoPadrao = padrao.length === eq.length && eq.every((id) => padrao.includes(id));
+  const opcoes = [...fs, ...eq.filter((id) => !fs.some(([fid]) => fid === id)).map((id) => [id, { nome: nomeFunc(t.loja, id) + " (inativo)" }])];
   let acao = t.status === "enviada" ? `<div class="bts"><button class="btn danger" data-action="reprovar" data-ref="${esc(refDe(t))}">Pedir correção</button><button class="btn primary" data-action="aprovar" data-ref="${esc(refDe(t))}">Aprovar</button></div>` : "";
   return `<div class="folha" role="dialog" aria-modal="true" aria-label="${esc(t.titulo)}">${cabFolha(t)}<div class="wrap estreito corpo">${infoTarefa(t)}
-    <section class="cartao quem"><h3>Quem faz</h3>${trava ? `<p><b>${esc(nomeFunc(t.loja, t.responsavel))}</b> <span class="soft small">(não dá para trocar depois de enviada)</span></p>` : `<div class="chips" role="group" aria-label="Designar">${[["", "Ninguém ainda"], ...fs.map(([id, f]) => [id, f.nome])].map(([id, n]) => `<button class="chip" data-action="designar" data-ref="${esc(refDe(t))}" data-para="${esc(id)}" aria-pressed="${(t.responsavel || "") === id}">${esc(n)}</button>`).join("")}</div>
-      ${t.rotina && t.responsavel ? (padrao === t.responsavel ? `<p class="soft small">${esc(nomeFunc(t.loja, t.responsavel))} já faz esta rotina por padrão.</p>` : `<button class="btn ghost sm" data-action="tornarPadrao" data-ref="${esc(refDe(t))}" style="justify-self:start;padding-left:0">Sempre passar esta rotina para ${esc(nomeFunc(t.loja, t.responsavel))}</button>`) : ""}`}</section>
+    <section class="cartao quem"><h3>Quem faz</h3>${trava ? `<p><b>${esc(nomesLista(t.loja, eq, false))}</b> <span class="soft small">(não dá para trocar depois de enviada)</span></p>` : `<p class="soft small">Toque em todas as pessoas que vão fazer. Pode ser mais de uma.</p><div class="chips" role="group" aria-label="Quem faz">${opcoes.map(([id, f]) => `<button class="chip" data-action="alternarResp" data-ref="${esc(refDe(t))}" data-id="${esc(id)}" aria-pressed="${eq.includes(id)}">${eq.includes(id) ? I.ok : ""}${esc(f.nome)}</button>`).join("")}${eq.length ? `<button class="chip" data-action="limparResp" data-ref="${esc(refDe(t))}">Ninguém (A distribuir)</button>` : ""}</div>
+      ${t.rotina && eq.length ? (mesmoPadrao ? `<p class="soft small">${esc(nomesLista(t.loja, eq))} ${eq.length > 1 ? "já fazem" : "já faz"} esta rotina por padrão.</p>` : `<button class="btn ghost sm" data-action="tornarPadrao" data-ref="${esc(refDe(t))}" style="justify-self:start;padding-left:0;text-align:left">Sempre passar esta rotina para ${esc(nomesLista(t.loja, eq))}</button>`) : ""}`}</section>
     ${Object.keys(t.itens || {}).length ? `<details class="cartao"><summary style="cursor:pointer;font-weight:700;min-height:44px;display:flex;align-items:center">${Object.keys(t.itens).length} itens para conferir</summary><ul class="resp">${Object.values(t.itens).sort((a, b) => a.ordem - b.ordem).map((it) => `<li><span>•</span><span>${esc(it.texto)}</span></li>`).join("")}</ul></details>` : ""}
     ${Object.keys(t.tentativas || {}).length ? `<section class="pilha"><h3>Envios</h3>${Object.entries(t.tentativas).sort((a, b) => b[0] - a[0]).map(([k, y]) => resumoTentativa(t, y, k)).join("")}</section>` : ""}
     ${!concluida(t) ? `<div><button class="btn ghost sm" data-action="cancelar" data-ref="${esc(refDe(t))}" style="color:var(--danger);padding-left:0">Cancelar esta tarefa</button></div>` : ""}
@@ -931,6 +1210,14 @@ function renderModal() {
     el.hidden = false; return;
   }
   const t = acharTarefa(m.ref); if (!t) { S.modal = null; el.hidden = true; return; }
+  if (m.tipo === "mover") {
+    const de = nomesLista(t.loja, [m.de]), para = nomesLista(t.loja, [m.para]), juntos = nomesLista(t.loja, [...resps(t), m.para]);
+    el.innerHTML = `<div class="scrim" data-action="fecharModal"></div><div class="dlg" role="dialog" aria-modal="true" aria-labelledby="dlgT"><h2 id="dlgT">${esc(para)} entra no lugar ou junto?</h2><p class="soft">${esc(t.titulo)}</p>
+      <div class="pilha"><button class="btn secondary block" data-action="moverJuntos" style="justify-content:flex-start;text-align:left">${I.equipe.replace("<svg", '<svg width="22" height="22"')}<span>Fazem juntos: ${esc(juntos)}</span></button>
+      <button class="btn secondary block" data-action="moverTrocar" style="justify-content:flex-start;text-align:left">${I.trocar.replace("<svg", '<svg width="22" height="22"')}<span>Trocar ${esc(de)} por ${esc(para)}</span></button>
+      <button class="btn ghost block" data-action="fecharModal">Cancelar</button></div></div>`;
+    el.hidden = false; return;
+  }
   const titulo = m.tipo === "reprovar" ? "Pedir correção" : "Cancelar tarefa";
   const rot = m.tipo === "reprovar" ? "O que precisa ser corrigido?" : "Por que cancelar?";
   el.innerHTML = `<div class="scrim" data-action="fecharModal"></div><form class="dlg" role="dialog" aria-modal="true" aria-labelledby="dlgT" data-action="${m.tipo === "reprovar" ? "confirmarReprovar" : "confirmarCancelar"}"><h2 id="dlgT">${titulo}</h2><p class="soft">${esc(t.titulo)}</p>
@@ -940,34 +1227,50 @@ function renderModal() {
 }
 function htmlAjuda() {
   const g = S.quem === "gerencia";
-  const passos = g ? ["No Quadro, cada coluna é uma pessoa. Arraste o cartão da tarefa até quem vai fazer (no celular, segure o cartão um instante antes de arrastar). Ou toque no cartão e escolha a pessoa.", "Use Diárias de hoje e Do mês para alternar entre as tarefas do dia e as do mês.", "Nova tarefa cria uma tarefa avulsa, do dia ou do mês.", "Em Aprovar aparecem as fotos e vídeos enviados. Aprove ou peça correção (com o motivo).", "Em Equipe você cadastra os funcionários e cria o PIN da gerência."]
-    : ["Toque na tarefa e em Começar.", "Marque cada item como Feito ou Com problema.", "Toque em Tirar foto ou Gravar vídeo e mostre o que você fez.", "Toque em Enviar para aprovação. A gerência aprova ou pede correção.", "Se pedir correção, a tarefa volta para você com o motivo."];
+  const passos = g ? ["No Quadro, cada coluna é uma pessoa. Arraste o cartão da tarefa até quem vai fazer (no celular, segure o cartão um instante antes de arrastar). Ou toque no cartão e escolha a pessoa.", "Tarefa feita por mais de uma pessoa: toque no cartão e marque todas, ou arraste para outra coluna e escolha Fazem juntos. O cartão aparece na coluna de cada uma e o envio é um só, da equipe.", "Use Diárias de hoje e Do mês para alternar entre as tarefas do dia e as do mês.", "Nova tarefa cria uma tarefa avulsa, do dia ou do mês.", "Em Aprovar aparecem as fotos e vídeos enviados. Aprove ou peça correção (com o motivo).", "Em Equipe você cadastra os funcionários e cria o PIN da gerência."]
+      .concat(["Início mostra o que está parado há mais tempo que o combinado (por exemplo: faz 9 dias que não limpam as mercadorias de cima) e o desempenho de cada pessoa: quem está com muitas ou poucas tarefas, quem produz mais e quem termina rápido ou demora."])
+    : ["Toque na tarefa e em Começar. Se a tarefa é em equipe e alguém já começou, toque em Ajudar nesta tarefa.", "Marque cada item como Feito ou Com problema.", "Toque em Tirar foto ou Gravar vídeo e mostre o que você fez.", "Toque em Enviar para aprovação. A gerência aprova ou pede correção.", "Se pedir correção, a tarefa volta para você com o motivo."];
   return `<div class="scrim" data-action="fecharModal"></div><div class="dlg" role="dialog" aria-modal="true" aria-labelledby="dlgT"><h2 id="dlgT">Como usar</h2><ol style="margin:0;padding-left:22px;display:grid;gap:10px">${passos.map((x) => `<li>${esc(x)}</li>`).join("")}</ol><button class="btn primary" data-action="fecharModal">Entendi</button></div>`;
 }
 
 // ===========================================================================
 // Ações
 // ===========================================================================
-async function designar(t, para) {
-  if (!t) return; para = para || null;
-  if (["enviada", "aprovada", "cancelada"].includes(t.status)) return aviso("Essa tarefa já foi enviada; não dá para trocar a pessoa.", "erro");
-  if ((t.responsavel || null) === para) return;
-  const x = tentativaAtual(t); const patch = { responsavel: para };
-  if (x && !x.envio && !x.encerrada && x.por !== para) { patch.tentativas = { [t.n]: { encerrada: new Date().toISOString(), motivoEncerramento: "passagem" } }; if (t.status === "andamento") patch.status = "pendente"; }
+async function definirResps(t, lista, msg) {
+  if (!t) return; lista = [...new Set(lista.filter(Boolean))];
+  if (["enviada", "aprovada", "cancelada"].includes(t.status)) return aviso("Essa tarefa já foi enviada; não dá para trocar quem faz.", "erro");
+  const atual = resps(t); if (atual.length === lista.length && atual.every((id) => lista.includes(id))) return;
+  const x = tentativaAtual(t); const patch = patchResps(lista);
+  // Se ninguém de quem já começou continua na tarefa, o envio em andamento é encerrado (passagem) e a tarefa volta a "A fazer".
+  if (aberta(x) && !equipeTentativa(x).some((id) => lista.includes(id))) { patch.tentativas = { [t.n]: { encerrada: new Date().toISOString(), motivoEncerramento: "passagem" } }; if (t.status === "andamento") patch.status = "pendente"; }
   await atualizarTarefa(t, patch);
-  aviso(para ? `Tarefa passada para ${nomeFunc(t.loja, para).replace(/\s*\(exemplo\)/i, "")}.` : "Tarefa voltou para A distribuir.");
+  aviso(msg || (lista.length ? `${lista.length > 1 ? "Em equipe" : "Agora com"}: ${nomesLista(t.loja, lista)}.` : "Tarefa voltou para A distribuir."));
+}
+async function soltarCartao(t, de, para) {
+  if (!t || de === para) return; const eq = resps(t);
+  if (["enviada", "aprovada", "cancelada"].includes(t.status)) return aviso("Essa tarefa já foi enviada; não dá para trocar quem faz.", "erro");
+  if (!para) return de ? definirResps(t, eq.filter((id) => id !== de), eq.length > 1 ? `${nomesLista(t.loja, [de])} saiu da tarefa. Continua: ${nomesLista(t.loja, eq.filter((id) => id !== de))}.` : null) : undefined;
+  if (eq.includes(para)) return aviso(`${nomesLista(t.loja, [para])} já está nesta tarefa.`);
+  if (!de || !eq.includes(de)) return definirResps(t, [para]);
+  S.modal = { tipo: "mover", ref: refDe(t), de, para }; renderModal(); setTimeout(() => $("#modal [data-action='moverJuntos']")?.focus(), 30);
 }
 async function comecar(t) {
-  const fid = S.quem; if (!t || fid === "gerencia") return;
-  if (t.responsavel && t.responsavel !== fid) return aviso("Esta tarefa é de outra pessoa.", "erro");
+  const fid = S.quem; if (!t || fid === "gerencia") return; const eq = resps(t);
+  if (eq.length && !eq.includes(fid)) return aviso("Esta tarefa é de outra pessoa.", "erro");
+  if (concluida(t) || t.status === "enviada") return;
   if (t.tipo === "diaria" && Date.now() < new Date(t.inicio).getTime() - 30 * 60000) return aviso(`Esta tarefa começa às ${hm(t.inicio)}.`);
-  const x = tentativaAtual(t); if (x && x.por === fid && !x.envio && !x.encerrada) return;
-  const n = (t.n || 0) + 1; const patch = { n, status: "andamento", responsavel: fid, tentativas: { [n]: { por: fid, inicio: new Date().toISOString(), respostas: {}, midias: {}, obs: "" } } };
-  if (x && !x.envio && !x.encerrada) patch.tentativas[t.n] = { encerrada: new Date().toISOString(), motivoEncerramento: "passagem" };
-  await atualizarTarefa(t, patch);
+  const x = tentativaAtual(t); if (aberta(x)) return participa(x, fid) ? undefined : ajudar(t);
+  const n = (t.n || 0) + 1; const agora = new Date().toISOString();
+  await atualizarTarefa(t, { n, status: "andamento", ...(eq.length ? {} : patchResps([fid])), tentativas: { [n]: { por: fid, inicio: agora, participantes: { [fid]: agora }, respostas: {}, midias: {}, obs: "" } } });
+}
+// Entra no envio que outra pessoa da equipe já começou: tudo que um marca aparece para todos.
+async function ajudar(t) {
+  const fid = S.quem; const x = tentativaAtual(t); if (!t || !aberta(x) || !resps(t).includes(fid) || participa(x, fid)) return;
+  await atualizarTarefa(t, { tentativas: { [t.n]: { participantes: { [fid]: new Date().toISOString() } } } });
+  aviso("Você entrou na tarefa. O que cada um marcar aparece para todos.");
 }
 async function enviar(t) {
-  const x = tentativaAtual(t); if (!t || !x || x.envio || x.por !== S.quem) return;
+  const x = tentativaAtual(t); if (!t || !podeEditar(t, S.quem)) return;
   const f = faltando(t);
   if (f.length) { S.falta = f[0].id; renderSheet(); document.getElementById("item-" + f[0].id)?.scrollIntoView({ behavior: reduzMov() ? "auto" : "smooth", block: "center" }); return aviso({ item: "Marque este item como Feito ou Com problema.", obsitem: "Escreva o que está errado neste item.", midia: "Falta a foto ou o vídeo do que você fez." }[f[0].tipo], "erro"); }
   const agora = new Date().toISOString(); const nc = Object.keys(t.itens || {}).some((iid) => x.respostas?.[iid]?.ok === false);
@@ -984,12 +1287,93 @@ async function aprovar(t) {
 async function exportarCSV(lojas) {
   const ts = tarefasPeriodo(lojas).sort((a, b) => new Date(a.prazo) - new Date(b.prazo));
   const lin = [["loja", "tipo", "tarefa", "prazo", "status", "responsavel", "enviada_em", "envios", "midias", "motivo_correcao"]];
-  for (const t of ts) { const x = tentativaAtual(t); lin.push([lojaNome(t.loja), t.tipo === "mensal" ? "do mês" : "diária", t.titulo, dataHora(t.prazo), STATUS[statusVisivel(t)].l, nomeFunc(t.loja, t.responsavel), x?.envio ? dataHora(x.envio) : "", Object.keys(t.tentativas || {}).length, midiasDe(x).length, x?.revisao?.motivo || ""]); }
+  for (const t of ts) { const x = tentativaAtual(t); lin.push([lojaNome(t.loja), t.tipo === "mensal" ? "do mês" : "diária", t.titulo, dataHora(t.prazo), STATUS[statusVisivel(t)].l, nomesLista(t.loja, resps(t), false), x?.envio ? dataHora(x.envio) : "", Object.keys(t.tentativas || {}).length, midiasDe(x).length, x?.revisao?.motivo || ""]); }
   const csv = "﻿" + lin.map((l) => l.map((c) => { const s = String(c ?? ""); return /[";\n]/.test(s) || /^[=+\-@]/.test(s) ? `"${s.replace(/^([=+\-@])/, "'$1").replace(/"/g, '""')}"` : s; }).join(";")).join("\n");
   try { await S.dl.save({ filename: `ede-gestao-${hoje()}.csv`, data: new Blob([csv], { type: "text/csv" }) }); } catch { aviso("O arquivo não foi salvo.", "erro"); }
 }
 function sairPortal() { S.portal = null; S.quem = null; S.tela = null; S.aberta = null; S.menu = false; S.modal = null; S.filtro = null; local.set("ede.portal", null); render(); renderMenu(); window.scrollTo(0, 0); }
 function erroSalvar(e) { console.error(e); return e?.code === "invalid_argument" ? "Você não tem permissão para esta mudança." : "Não consegui salvar. Confira a internet e tente de novo."; }
+
+// Põe a tarefa de uma rotina no dia de hoje (a partir de um alerta do Início).
+async function porNoQuadroHoje(loja, rid) {
+  const r = S.rotinas[rid]; if (!r || !loja) return; const id = docId(loja, hoje()); const ref = S.db.doc(`diarias/${id}`);
+  const snap = await ref.get(); if (!snap.exists) await ref.set({ loja, data: hoje(), criadoEm: new Date().toISOString(), tarefas: montar(loja, "diaria", hoje()) });
+  const atual = (await ref.get()).data()?.tarefas || {};
+  if (atual[`r_${rid}`] && !feita(atual[`r_${rid}`])) { aviso("Essa tarefa já está no quadro de hoje."); return; }
+  const chave = atual[`r_${rid}`] ? `r_${rid}_${uid("x")}` : `r_${rid}`;
+  await ref.update({ tarefas: { [chave]: tarefaParaHoje(loja, rid, r) } });
+  aviso(`“${r.titulo}” está no quadro de hoje${padraoDe(loja, rid).length ? ` com ${nomesLista(loja, padraoDe(loja, rid))}` : ", em A distribuir"}.`);
+}
+
+// ===========================================================================
+// Modo local: o mesmo site aberto direto no aparelho, guardando no IndexedDB do navegador
+// ===========================================================================
+async function criarLocal(cfg) {
+  const pedido = (req) => new Promise((ok, er) => { req.onsuccess = () => ok(req.result); req.onerror = () => er(req.error); });
+  const abrir = indexedDB.open("ede-gestao", 1);
+  abrir.onupgradeneeded = () => { abrir.result.createObjectStore("docs"); abrir.result.createObjectStore("meta"); };
+  const idb = await pedido(abrir);
+  const guarda = (nome, modo = "readonly") => idb.transaction(nome, modo).objectStore(nome);
+  const ehMidia = (p) => p.startsWith("midias/");
+  const leve = (d) => { const { dataUrl, poster, ...resto } = d || {}; return resto; }; // índice das mídias sem o conteúdo pesado
+  const copia = (x) => x === undefined ? undefined : JSON.parse(JSON.stringify(x));
+  const juntar = (a, b) => { for (const [k, v] of Object.entries(b)) { if (v && typeof v === "object" && !Array.isArray(v) && a[k] && typeof a[k] === "object" && !Array.isArray(a[k])) juntar(a[k], v); else a[k] = copia(v); } return a; };
+  const cache = new Map(); const meta = new Map();
+  for (const faixa of [IDBKeyRange.upperBound("midias/", true), IDBKeyRange.lowerBound("midias0")]) { const [ks, vs] = await Promise.all([pedido(guarda("docs").getAllKeys(faixa)), pedido(guarda("docs").getAll(faixa))]); ks.forEach((k, i) => cache.set(k, vs[i])); }
+  { const [ks, vs] = await Promise.all([pedido(guarda("meta").getAllKeys()), pedido(guarda("meta").getAll())]); ks.forEach((k, i) => meta.set(k, vs[i])); }
+  if (!cache.has("config/org") && cfg.semente) for (const [k, v] of Object.entries(cfg.semente)) { cache.set(k, copia(v)); await pedido(guarda("docs", "readwrite").put(copia(v), k)); }
+  const ouvintes = new Set(); const avisar = () => setTimeout(() => ouvintes.forEach((f) => f()), 0);
+  const ler = async (p) => cache.has(p) ? copia(cache.get(p)) : ehMidia(p) ? copia(await pedido(guarda("docs").get(p))) : undefined;
+  const gravar = async (p, d) => {
+    if (ehMidia(p)) { if (p.split("/").length === 2) { meta.set(p, leve(d)); await pedido(guarda("meta", "readwrite").put(leve(d), p)); } } else cache.set(p, copia(d));
+    await pedido(guarda("docs", "readwrite").put(copia(d), p)); avisar();
+  };
+  const foto = (p, d) => ({ id: p.split("/").pop(), exists: d !== undefined, data: () => copia(d), metadata: { fromCache: false, hasPendingWrites: false } });
+  const doc = (p) => ({
+    id: p.split("/").pop(), path: p,
+    get: async () => foto(p, await ler(p)),
+    set: async (d) => gravar(p, d),
+    update: async (d) => { const atual = await ler(p); if (atual === undefined) throw { code: "invalid_argument", message: "documento não existe" }; await gravar(p, juntar(atual, d)); },
+    delete: async () => { cache.delete(p); meta.delete(p); await pedido(guarda("docs", "readwrite").delete(p)); await pedido(guarda("meta", "readwrite").delete(p)); avisar(); },
+    acquire: async () => ({ acquired: true }),
+    onSnapshot: (next) => { let vivo = true; const f = async () => { const d = await ler(p); if (vivo) next(foto(p, d)); }; ouvintes.add(f); f(); return () => { vivo = false; ouvintes.delete(f); }; },
+    collection: (c) => colecao(p + "/" + c),
+  });
+  const compara = { "==": (x, v) => x === v, "!=": (x, v) => x !== v, ">=": (x, v) => x >= v, "<=": (x, v) => x <= v, ">": (x, v) => x > v, "<": (x, v) => x < v };
+  function consulta(col, filtros = [], ordem = null, lim = 1000) {
+    const rodar = () => {
+      const n = col.split("/").length + 1; const fonte = col === "midias" ? meta : cache;
+      let ds = [...fonte.entries()].filter(([k]) => k.startsWith(col + "/") && k.split("/").length === n).map(([k, v]) => foto(k, v));
+      for (const [f, op, v] of filtros) ds = ds.filter((d) => (compara[op] || (() => true))(d.data()[f], v));
+      if (ordem) ds.sort((a, b) => ((a.data()[ordem[0]] > b.data()[ordem[0]]) ? 1 : -1) * (ordem[1] === "desc" ? -1 : 1));
+      ds = ds.slice(0, lim); return { docs: ds, size: ds.length, empty: !ds.length, docChanges: () => [], metadata: { fromCache: false, hasPendingWrites: false } };
+    };
+    return { where: (f, op, v) => consulta(col, [...filtros, [f, op, v]], ordem, lim), orderBy: (f, dir = "asc") => consulta(col, filtros, [f, dir], lim), limit: (n) => consulta(col, filtros, ordem, n),
+      get: async () => rodar(), onSnapshot: (next) => { let vivo = true; const f = () => { if (vivo) next(rodar()); }; ouvintes.add(f); setTimeout(f, 0); return () => { vivo = false; ouvintes.delete(f); }; } };
+  }
+  const colecao = (c) => Object.assign(consulta(c), { path: c, doc: (id) => doc(c + "/" + (id || uid("d"))), add: async (d) => { const r = doc(c + "/" + uid("d")); await r.set(d); return r; } });
+  const salvarArquivo = ({ filename, data }) => { const a = document.createElement("a"); a.href = URL.createObjectURL(data); a.download = filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000); };
+  S.backup = {
+    async exportar() {
+      const [ks, vs] = await Promise.all([pedido(guarda("docs").getAllKeys()), pedido(guarda("docs").getAll())]);
+      const docs = {}; ks.forEach((k, i) => { docs[k] = vs[i]; });
+      salvarArquivo({ filename: `ede-gestao-copia-${hoje()}.json`, data: new Blob([JSON.stringify({ app: "ede-gestao", versao: 1, salvoEm: new Date().toISOString(), docs })], { type: "application/json" }) });
+      aviso("Cópia salva. Guarde o arquivo em lugar seguro.");
+    },
+    async importar(file) {
+      let dados; try { dados = JSON.parse(await file.text()); } catch { return aviso("Esse arquivo não é uma cópia do Éde Gestão.", "erro"); }
+      if (dados?.app !== "ede-gestao" || !dados.docs || typeof dados.docs !== "object") return aviso("Esse arquivo não é uma cópia do Éde Gestão.", "erro");
+      if (!confirm(`Restaurar a cópia de ${dataHora(dados.salvoEm) || "data desconhecida"}? Os dados atuais deste aparelho serão trocados pelos da cópia.`)) return;
+      const t = idb.transaction(["docs", "meta"], "readwrite"); t.objectStore("docs").clear(); t.objectStore("meta").clear();
+      for (const [k, v] of Object.entries(dados.docs)) { t.objectStore("docs").put(v, k); if (ehMidia(k) && k.split("/").length === 2) t.objectStore("meta").put(leve(v), k); }
+      await new Promise((ok, er) => { t.oncomplete = ok; t.onerror = () => er(t.error); });
+      location.reload();
+    },
+  };
+  const db = { doc, collection: colecao };
+  const user = { me: async () => ({ id: "local", name: "", isOwner: true, canEdit: true }), id: async () => "local", isOwner: async () => true, canEdit: async () => true, can: async () => true };
+  return { use: async (n) => ({ db, user, downloads: { save: async (o) => salvarArquivo(o) } }[n] || null) };
+}
 
 // ===========================================================================
 // Arrastar e soltar no quadro (mouse e toque)
@@ -1015,12 +1399,12 @@ async function terminarArraste(cancelar) {
   const d = drag; drag = null; if (!d) return; clearTimeout(d.timer);
   if (!d.ativo) return; suprimirClique = true; setTimeout(() => { suprimirClique = false; }, 350);
   d.g?.remove(); d.card.classList.remove("arrastando"); document.querySelectorAll(".col.alvo").forEach((c) => c.classList.remove("alvo"));
-  if (!cancelar && d.col) { const t = acharTarefa(d.ref); try { await designar(t, d.col.dataset.col); } catch (e) { aviso(erroSalvar(e), "erro"); } }
+  if (!cancelar && d.col) { const t = acharTarefa(d.ref); try { await soltarCartao(t, d.de, d.col.dataset.col); } catch (e) { aviso(erroSalvar(e), "erro"); } }
   if (S.renderPendente) { S.renderPendente = false; render(); }
 }
 document.addEventListener("pointerdown", (ev) => {
   const card = ev.target.closest("[data-kcard]"); if (!card || card.dataset.lock || ev.button > 0) return;
-  drag = { card, ref: card.dataset.ref, x: ev.clientX, y: ev.clientY, x0: ev.clientX, y0: ev.clientY, ativo: false, toque: ev.pointerType !== "mouse" };
+  drag = { card, ref: card.dataset.ref, de: card.dataset.de || "", x: ev.clientX, y: ev.clientY, x0: ev.clientX, y0: ev.clientY, ativo: false, toque: ev.pointerType !== "mouse" };
   if (drag.toque) drag.timer = setTimeout(() => { if (drag && !drag.ativo) iniciarArraste(); }, 320);
 });
 document.addEventListener("pointermove", (ev) => {
@@ -1049,7 +1433,14 @@ document.addEventListener("click", async (ev) => {
     else if (act === "menu") { S.menu = !S.menu; renderMenu(); }
     else if (act === "fecharMenu") { if (ev.target === a || a.tagName === "BUTTON") { S.menu = false; renderMenu(); } }
     else if (act === "ajuda") { S.menu = false; renderMenu(); S.modal = { tipo: "ajuda" }; renderModal(); }
-    else if (act === "tela") { S.tela = a.dataset.tela; S.filtro = null; S.aprIdx = 0; render(); window.scrollTo(0, 0); }
+    else if (act === "tela") { S.tela = a.dataset.tela; S.filtro = null; S.aprIdx = 0; if (S.tela === "nova" && !a.dataset.pre) S.novaPre = null; render(); window.scrollTo(0, 0); }
+    else if (act === "periodoEq") { S.periodoEq = Number(a.dataset.p) === 30 ? 30 : 7; render(); }
+    else if (act === "todosAlertas") { S.todosAlertas = !S.todosAlertas; render(); }
+    else if (act === "atualizarHist") { await carregarHistorico(S.portal, true); aviso("Análise atualizada."); }
+    else if (act === "porHoje") { await porNoQuadroHoje(S.portal, a.dataset.rot); }
+    else if (act === "novaCom") { S.novaPre = { titulo: a.dataset.titulo, instr: a.dataset.instr }; S.tela = "nova"; render(); window.scrollTo(0, 0); }
+    else if (act === "verPessoa") { S.tela = "quadro"; S.filtro = null; render(); window.scrollTo(0, 0); const b = $(".board"); const c = b?.querySelector(`.col[data-col="${CSS.escape(a.dataset.id)}"]`); if (c) b.scrollLeft = c.offsetLeft - b.offsetLeft - 4; }
+    else if (act === "exportarLocal") { await S.backup?.exportar(); }
     else if (act === "escopo") { S.escopo = a.dataset.e; render(); }
     else if (act === "filtro") { S.filtro = a.dataset.f || null; render(); }
     else if (act === "irCol") { const b = $(".board"); const c = b?.querySelector(`.col[data-col="${CSS.escape(a.dataset.colId)}"]`); if (c) b.scrollTo({ left: c.offsetLeft - b.offsetLeft - 4, behavior: reduzMov() ? "auto" : "smooth" }); }
@@ -1059,15 +1450,19 @@ document.addEventListener("click", async (ev) => {
     else if (act === "comecar") { a.disabled = true; await comecar(acharTarefa(S.aberta)); }
     else if (act === "op") { const t = acharTarefa(S.aberta); const r = tentativaAtual(t)?.respostas?.[a.dataset.item]; const v = a.dataset.v === "feito" ? (r?.ok === true ? { ok: null, obs: "" } : { ok: true, obs: "" }) : (r?.ok === false ? { ok: null, obs: "" } : { ok: false, obs: r?.obs || "" }); if (S.falta === a.dataset.item) S.falta = null; await atualizarTarefa(t, { tentativas: { [t.n]: { respostas: { [a.dataset.item]: v } } } }); }
     else if (act === "enviar") { a.disabled = true; await enviar(acharTarefa(S.aberta)); a.disabled = false; }
-    else if (act === "designar") { await designar(acharTarefa(a.dataset.ref), a.dataset.para); }
-    else if (act === "tornarPadrao") { const t = acharTarefa(a.dataset.ref); await S.db.doc(`portais/${t.loja}`).update({ padrao: { [t.rotina]: t.responsavel } }); aviso("Pronto: essa rotina vai para essa pessoa daqui em diante."); }
+    else if (act === "alternarResp") { const t = acharTarefa(a.dataset.ref); if (!t) return; const eq = resps(t); const id = a.dataset.id; await definirResps(t, eq.includes(id) ? eq.filter((x) => x !== id) : [...eq, id]); }
+    else if (act === "limparResp") { await definirResps(acharTarefa(a.dataset.ref), []); }
+    else if (act === "moverJuntos" || act === "moverTrocar") { const m = S.modal; S.modal = null; renderModal(); const t = acharTarefa(m?.ref); if (!t) return; const eq = resps(t); await definirResps(t, act === "moverJuntos" ? [...eq, m.para] : eq.map((id) => (id === m.de ? m.para : id))); }
+    else if (act === "ajudar") { a.disabled = true; await ajudar(acharTarefa(S.aberta)); }
+    else if (act === "padraoAlt") { const atual = padraoDe(S.portal, a.dataset.rot); const id = a.dataset.id; const novo = atual.includes(id) ? atual.filter((x) => x !== id) : [...atual, id]; await S.db.doc(`portais/${S.portal}`).update({ padrao: { [a.dataset.rot]: novo } }); aviso(novo.length ? `Por padrão: ${nomesLista(S.portal, novo)}.` : "Sem responsável padrão: a tarefa nasce em A distribuir."); }
+    else if (act === "tornarPadrao") { const t = acharTarefa(a.dataset.ref); const eq = resps(t); if (!t?.rotina || !eq.length) return; await S.db.doc(`portais/${t.loja}`).update({ padrao: { [t.rotina]: eq } }); aviso(`Pronto: esta rotina vai para ${nomesLista(t.loja, eq)} daqui em diante.`); }
     else if (act === "aprovar") { a.disabled = true; await aprovar(acharTarefa(a.dataset.ref)); }
     else if (act === "reprovar") { S.modal = { tipo: "reprovar", ref: a.dataset.ref }; renderModal(); setTimeout(() => $("#motivo")?.focus(), 30); }
     else if (act === "cancelar") { S.modal = { tipo: "cancelar", ref: a.dataset.ref }; renderModal(); setTimeout(() => $("#motivo")?.focus(), 30); }
     else if (act === "revnav") { S.aprIdx += Number(a.dataset.d); render(); }
     else if (act === "fecharModal") { if (ev.target === a || a.tagName === "BUTTON") { S.modal = null; renderModal(); } }
     else if (act === "ver") { const m = await carregarMidia(a.dataset.mid) || cacheMidia[a.dataset.mid]; if (!m) return aviso("Não consegui abrir essa mídia.", "erro"); S.modal = { tipo: "player", id: a.dataset.mid }; renderModal(); if (m.tipo === "video") { const url = await urlDoVideo(m, a.dataset.mid); if (S.modal?.id === a.dataset.mid) { S.modal.url = url; renderModal(); } } }
-    else if (act === "tirarMidia") { const t = acharTarefa(S.aberta); const x = tentativaAtual(t); if (!x || x.envio || x.por !== S.quem) return; await atualizarTarefa(t, { tentativas: { [t.n]: { midias: { [a.dataset.mid]: { removida: true } } } } }); await S.db.doc(`midias/${a.dataset.mid}`).update({ removida: true }).catch(() => {}); aviso("Removida. Tire outra se precisar."); }
+    else if (act === "tirarMidia") { const t = acharTarefa(S.aberta); const x = tentativaAtual(t); if (!x || !podeEditar(t, S.quem)) return; await atualizarTarefa(t, { tentativas: { [t.n]: { midias: { [a.dataset.mid]: { removida: true } } } } }); await S.db.doc(`midias/${a.dataset.mid}`).update({ removida: true }).catch(() => {}); aviso("Removida. Tire outra se precisar."); }
     else if (act === "periodo") { S.painel.periodo = a.dataset.p; if (a.dataset.p === "mes") S.painel.extra = null; render(); }
     else if (act === "csv") { await exportarCSV(a.dataset.lojas.split(",")); }
     else if (act === "editarFunc") { S.modal = { tipo: "func", id: a.dataset.id }; renderModal(); }
@@ -1080,7 +1475,7 @@ document.addEventListener("change", async (ev) => {
   try {
     if (act === "obs") { const t = acharTarefa(S.aberta); await atualizarTarefa(t, { tentativas: { [t.n]: { obs: a.value.slice(0, 1000) } } }); }
     else if (act === "obsitem") { const t = acharTarefa(S.aberta); await atualizarTarefa(t, { tentativas: { [t.n]: { respostas: { [a.dataset.item]: { ok: false, obs: a.value.slice(0, 500) } } } } }); }
-    else if (act === "padrao") { await S.db.doc(`portais/${S.portal}`).update({ padrao: { [a.dataset.rot]: a.value || null } }); aviso("Responsável padrão salvo."); }
+    else if (act === "importarLocal") { const file = a.files?.[0]; a.value = ""; if (file) await S.backup?.importar(file); }
     else if (act === "foto" || act === "video") {
       const file = a.files?.[0]; a.value = ""; if (!file) return; const t = acharTarefa(S.aberta); const x = tentativaAtual(t);
       S.enviando = { texto: act === "foto" ? "Enviando a foto…" : "Preparando o vídeo…", p: 0.05 }; renderSheet();
@@ -1121,9 +1516,9 @@ document.addEventListener("submit", async (ev) => {
       const linhas = String(fd.get("itens") || "").split("\n").map((s) => s.trim()).filter(Boolean).slice(0, 20);
       const col = tipo === "mensal" ? "mensais" : "diarias"; const chave = tipo === "mensal" ? mesAtual() : hoje(); const id = docId(loja, chave); const ref = S.db.doc(`${col}/${id}`);
       const snap = await ref.get(); if (!snap.exists) await ref.set(tipo === "mensal" ? { loja, mes: chave, criadoEm: new Date().toISOString(), tarefas: montar(loja, "mensal", chave) } : { loja, data: chave, criadoEm: new Date().toISOString(), tarefas: montar(loja, "diaria", chave) });
-      await ref.update({ tarefas: { [uid("a_")]: { avulsa: true, titulo: titulo.slice(0, 120), instrucoes: String(fd.get("instrucoes") || "").slice(0, 1000), responsavel: fd.get("resp") || null, inicio: new Date(agora).toISOString(), prazo,
+      await ref.update({ tarefas: { [uid("a_")]: { avulsa: true, titulo: titulo.slice(0, 120), instrucoes: String(fd.get("instrucoes") || "").slice(0, 1000), ...patchResps([...new Set(fd.getAll("resp").map(String).filter((id) => S.portais[loja]?.funcionarios?.[id]))]), inicio: new Date(agora).toISOString(), prazo,
         exigeMidia: fd.get("exigeMidia") === "on", exigeAprovacao: fd.get("exigeAprovacao") === "on", peso: 2, itens: Object.fromEntries(linhas.map((tx, i) => [`i${i + 1}`, { texto: tx.slice(0, 200), ordem: i + 1, critico: false, peso: 1 }])), status: "pendente", n: 0, tentativas: {} } } });
-      S.escopo = tipo === "mensal" ? "mes" : "hoje"; S.tela = "quadro"; render(); window.scrollTo(0, 0); aviso("Tarefa criada.");
+      S.novaPre = null; S.escopo = tipo === "mensal" ? "mes" : "hoje"; S.tela = "quadro"; render(); window.scrollTo(0, 0); aviso("Tarefa criada.");
     } else if (act === "addFunc") {
       const nome = String(fd.get("nome") || "").trim(); if (!temTexto(nome)) { $("#erroFunc").textContent = "Escreva o nome do funcionário."; return; }
       await S.db.doc(`portais/${loja}`).update({ funcionarios: { [uid("f_")]: { nome: nome.slice(0, 60), funcao: String(fd.get("funcao") || "").slice(0, 40), ativo: true, criadoEm: new Date().toISOString() } } });

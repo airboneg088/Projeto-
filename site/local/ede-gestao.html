@@ -585,7 +585,7 @@ function diaFeito(t) { const x = tentativaAtual(t); return x?.envio ? fmtData(ne
 function combina(r, t) {
   if (!r || t.rotina) return false; const txt = norm([t.titulo, t.instrucoes, ...Object.values(t.itens || {}).map((i) => i.texto)].join(" "));
   const s_ = " " + txt.replace(/[^a-z0-9]+/g, " ") + " ";
-  const tem = (w) => { const q = norm(w).replace(/[^a-z0-9]+/g, " ").trim(); return !!q && (q.includes(" ") ? s_.includes(" " + q + " ") : s_.includes(" " + q)); };
+  const tem = (w) => { const q = norm(w).replace(/[^a-z0-9]+/g, " ").trim(); if (!q) return false; if (q.includes(" ")) return s_.includes(q + " "); return q.length >= 5 ? s_.includes(q) : new RegExp(" (a|re|des)?" + q).test(s_); };
   if (Array.isArray(r.palavras) && r.palavras.length) return r.palavras.every((g) => (Array.isArray(g) ? g : [g]).some(tem));
   return s_.includes(" " + norm(r.titulo).replace(/[^a-z0-9]+/g, " ").trim() + " ");
 }
@@ -619,7 +619,7 @@ async function garantirPeriodicas(loja) {
 const DIAS_SEMANA = { 1: "Às segundas", 2: "Às terças", 3: "Às quartas", 4: "Às quintas", 5: "Às sextas", 6: "Aos sábados", 7: "Aos domingos" };
 // Lê o histórico da loja e diz o que está parado há mais tempo que o combinado, o que costuma falhar e o que repete problema.
 function analisarRotina(loja) {
-  const ts = tarefasHist(loja); const hj = hoje(); const agora = Date.now(); const out = [];
+  const ts = tarefasHist(loja); const hj = hoje(); const agora = Date.now(); const out = []; const atrasos = [];
   const venceu = (t) => feita(t) || new Date(t.prazo).getTime() < agora;
   const hojeDoc = S.diarias[docId(loja, hj)]?.tarefas || {};
   const acaoRot = (rid) => hojeDoc[`r_${rid}`] && !feita({ status: hojeDoc[`r_${rid}`].status }) ? { tipo: "abrir", ref: `diarias|${docId(loja, hj)}|r_${rid}`, l: "Ver a tarefa de hoje" } : hojeDoc[`r_${rid}`] ? null : { tipo: "porHoje", rid, l: "Pôr no quadro de hoje" };
@@ -646,7 +646,7 @@ function analisarRotina(loja) {
       }
       const enviadas = daRot.filter((t) => primeiraEnviada(t) != null).sort((a, b) => (b.chave > a.chave ? 1 : -1)).slice(0, 10);
       const tarde = enviadas.filter((t) => new Date(t.tentativas[primeiraEnviada(t)].envio) > new Date(t.prazo)).length;
-      if (enviadas.length >= 4 && tarde / enviadas.length >= 0.5) out.push({ nivel: "info", peso: tarde / enviadas.length, txt: `“${r.titulo}” costuma ser enviada depois do horário (${tarde} de ${enviadas.length}).`, det: `O horário combinado é até ${r.fim || "18:00"}.` });
+      if (enviadas.length >= 4 && tarde / enviadas.length >= 0.5) atrasos.push({ titulo: r.titulo, tarde, n: enviadas.length, fim: r.fim || "18:00" });
     } else if (tipo === "mensal") {
       const atual = daRot.find((t) => t.tipo === "mensal" && t.chave === mesAtual());
       if (atual && !feita(atual) && new Date(atual.prazo).getTime() < agora) out.push({ nivel: "alta", peso: 10, txt: `“${r.titulo}” do mês está atrasada.`, det: `O prazo era ${dataCurta(atual.prazo)}.`, acao: { tipo: "abrir", ref: refDe(atual), l: "Abrir a tarefa" } });
@@ -661,6 +661,8 @@ function analisarRotina(loja) {
     for (const [iid, resp] of Object.entries(x.respostas || {})) if (resp?.ok === false && t.itens?.[iid]) { const k = (t.rotina || norm(t.titulo)) + "|" + iid; const p = (probs[k] ||= { n: 0, texto: t.itens[iid].texto, onde: t.titulo, obs: "", em: "" }); p.n++; if (x.envio > p.em) { p.em = x.envio; p.obs = resp.obs || ""; } }
   }
   for (const p of Object.values(probs)) if (p.n >= 2) out.push({ nivel: "media", peso: p.n, txt: `“${p.texto}” teve problema ${p.n} vezes em 14 dias.`, det: `${p.onde}.${p.obs ? ` Último relato: “${p.obs}”` : ""}`, acao: { tipo: "criar", titulo: `Resolver: ${p.texto}`.slice(0, 120), instr: `Problema relatado ${p.n} vezes em ${p.onde}.${p.obs ? ` Último relato: ${p.obs}` : ""}`, l: "Criar tarefa para resolver" } });
+  if (atrasos.length >= 3) out.push({ nivel: "info", peso: 1, txt: `${atrasos.length} rotinas costumam ser enviadas depois do horário.`, det: atrasos.sort((a, b) => b.tarde / b.n - a.tarde / a.n).map((a) => `${a.titulo} (${a.tarde} de ${a.n}, até ${a.fim})`).join(" · ") + "." });
+  else for (const a of atrasos) out.push({ nivel: "info", peso: a.tarde / a.n, txt: `“${a.titulo}” costuma ser enviada depois do horário (${a.tarde} de ${a.n}).`, det: `O horário combinado é até ${a.fim}.` });
   const ordem = { alta: 0, media: 1, info: 2 };
   return out.sort((a, b) => (ordem[a.nivel] - ordem[b.nivel]) || (b.peso - a.peso));
 }
@@ -888,12 +890,12 @@ function resumoLoja(l) {
 }
 function telaPortais() {
   const lojas = Object.keys(S.org.lojas).sort((a, b) => (S.org.lojas[a].ordem || 0) - (S.org.lojas[b].ordem || 0));
-  return `<section class="pilha"><h1>Escolha o portal da loja</h1><p class="soft">Cada loja tem a sua equipe, o seu quadro de tarefas e as suas aprovações.</p>${S.local ? `<p class="aviso-local">Modo local: os dados ficam só neste aparelho. Faça cópia em Gerência › Mais.</p>` : ""}</section>
+  return `<section class="pilha"><h1>Escolha o portal da loja</h1><p class="soft">Cada loja tem a sua equipe, o seu quadro de tarefas e as suas aprovações.</p>${S.local ? `<p class="aviso-local">Modo local: os dados ficam só neste aparelho. Faça cópia de vez em quando. <button class="btn ghost sm" data-action="exportarLocal" style="padding:0 6px;min-height:36px;color:inherit;text-decoration:underline">Salvar cópia agora</button></p>` : ""}</section>
     <div class="portais">${lojas.map((l) => { const r = resumoLoja(l); const temDados = S.diarias[docId(l, hoje())];
       return `<button class="portal" data-action="entrarPortal" data-loja="${esc(l)}"><span class="pt"><span class="pi"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAuMDAgMC4wMCAxMjAuMDAgMTIwLjAwIiB3aWR0aD0iMTIwIiBoZWlnaHQ9IjEyMCI+PHRpdGxlPsOJZGUgVXRpbGlkYWRlczwvdGl0bGU+PHJlY3Qgd2lkdGg9IjEyMCIgaGVpZ2h0PSIxMjAiIHJ4PSIyNiIgZmlsbD0iI0VFNUQwNiI+PC9yZWN0PjxnIHRyYW5zZm9ybT0idHJhbnNsYXRlKDIxLjAwLDIzLjIwKSBzY2FsZSgwLjc4MDApIj48cGF0aCBkPSJNNjAuNzUsMjcuNTdMNzMuNDIsMy43M0w4Mi4yNSw4LjQzTDY5LjU4LDMyLjI3WiIgZmlsbD0iI0ZGRkZGRiI+PC9wYXRoPjxwYXRoIGQ9Ik0xMyw5MEwxMyw1MEw1MCwxNkw4Nyw1MEw4Nyw5MFoiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI0ZGRkZGRiIgc3Ryb2tlLXdpZHRoPSI5IiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48L3BhdGg+PHBhdGggZD0iTTIzLjAzNTk5OTk5OTk5OTk5OCAtMTAuOTcySDI5LjI3NkwyOS4xNzE5OTk5OTk5OTk5OTcgMC4wSDEuMjQ4Vi01LjJMNC4zNjc5OTk5OTk5OTk5OTkgLTYuNDQ3OTk5OTk5OTk5OTk5NVYtMzAuMjEyTDEuMjQ4IC0zMS40NTk5OTk5OTk5OTk5OTdWLTM2LjY2TDE0Ljc2Nzk5OTk5OTk5OTk5OSAtMzYuOTJIMjguNjUxOTk5OTk5OTk5OTk3Vi0yNi40MTZIMjIuNDEyTDIxLjU4IC0yOS4zOEgxNS4wMjc5OTk5OTk5OTk5OTlWLTIyLjM2SDI0LjMzNlYtMTUuMDhIMTUuMDI3OTk5OTk5OTk5OTk5Vi03LjU0SDIyLjIwNFoiIHRyYW5zZm9ybT0idHJhbnNsYXRlKDM0Ljc0LDgyLjUwKSIgZmlsbD0iI0ZGRkZGRiI+PC9wYXRoPjwvZz48L3N2Zz4=" alt=""></span><span><span class="soft small">Portal da loja</span><h2>${esc(lojaNome(l))}</h2></span></span>
       ${temDados ? `<span class="nums num"><span><b>${r.fazer}</b>a fazer</span><span><b>${r.aprovar}</b>para aprovar</span><span class="${r.atrasadas ? "ruim" : ""}"><b>${r.atrasadas}</b>atrasadas</span></span>` : `<span class="soft small">${funcionarios(l).length} funcionários</span>`}
       <span class="entrar">Entrar ${I.seta}</span></button>`; }).join("")}</div>
-    ${S.isOwner ? `<section class="pilha"><h2>Visão das 3 lojas</h2>${telaPainel(lojas, true)}</section>` : ""}`;
+    ${S.isOwner && (!S.local || Object.keys(S.org.lojas).every((l) => !S.portais[l]?.pinHash)) ? `<section class="pilha"><h2>Visão das 3 lojas</h2>${telaPainel(lojas, true)}</section>` : ""}`;
 }
 
 // --- Quem está usando ------------------------------------------------------
@@ -909,7 +911,7 @@ function gerenciaLiberada(loja) { return (S.isOwner && !S.local) || !S.portais[l
 function telaPin(loja) {
   return `<form class="form" data-action="pin" style="max-width:420px;justify-self:center;width:100%"><h1>Gerência</h1><p class="soft">Digite o PIN da gerência da ${esc(lojaNome(loja))}.</p>
     <label class="f">PIN<input id="pinEntrada" class="pin" name="pin" type="password" inputmode="numeric" autocomplete="off" maxlength="8"></label><p class="erro" id="erroPin" role="alert"></p>
-    <button class="btn primary block" type="submit">Entrar</button><button class="btn ghost block" type="button" data-action="trocarPessoa">Voltar</button></form>`;
+    <button class="btn primary block" type="submit">Entrar</button><button class="btn ghost block" type="button" data-action="trocarPessoa">Voltar</button>${S.local ? '<button class="btn ghost block" type="button" data-action="esqueciPin">Esqueci o PIN</button>' : ""}</form>`;
 }
 
 // --- Funcionário -----------------------------------------------------------
@@ -961,10 +963,11 @@ function telaInicio(loja) {
   const ts = [...tarefasHoje(loja), ...tarefasMes(loja)].filter((t) => t.status !== "cancelada");
   const abertas = ts.filter((t) => !concluida(t) && t.status !== "enviada").length, atrasadas = ts.filter((t) => statusVisivel(t) === "atrasada").length;
   const semResp = ts.filter((t) => !resps(t).length && !concluida(t) && t.status !== "enviada").length, aprovar = fila(loja).length;
-  const escopoDe = (f) => tarefasHoje(loja).some((t) => f(t)) ? "hoje" : "mes";
+  const escopoDe = (f) => tarefasHoje(loja).some((t) => f(t)) ? "hoje" : tarefasMes(loja).some((t) => f(t)) ? "mes" : "";
   const kpi = (v, k, d, ruim, tela, f = "", e = "") => `<button class="kpi ${ruim ? "ruim" : ""}" style="text-align:left;cursor:pointer;font:inherit;color:inherit" data-action="tela" data-tela="${tela}"${f ? ` data-f="${f}"` : ""}${e ? ` data-e="${e}"` : ""}><span class="v num">${v}</span><span class="k">${k}</span><span class="d">${d}</span></button>`;
-  return `<div class="linha entre"><h1>Início</h1><span class="soft">${esc(lojaNome(loja))} · ${esc(new Intl.DateTimeFormat("pt-BR", { timeZone: TZ, weekday: "long", day: "2-digit", month: "2-digit" }).format(new Date()))}</span></div>
-    <div class="kpis">${kpi(abertas, "Abertas agora", "hoje e do mês", false, "quadro")}${kpi(aprovar, "Para aprovar", "esperando você", false, "aprovar")}${kpi(atrasadas, "Atrasadas", "passou do prazo", atrasadas > 0, "quadro", "atrasada", escopoDe((t) => statusVisivel(t) === "atrasada"))}${kpi(semResp, "Sem responsável", "em A distribuir", semResp > 0, "quadro", "", escopoDe((t) => !resps(t).length && !concluida(t) && t.status !== "enviada"))}</div>
+  const pinApagado = S.portais[loja]?.pinApagadoEm && !S.portais[loja]?.pinHash ? `<p class="alerta">${I.alerta}O PIN da gerência foi apagado pelo “Esqueci o PIN” em ${esc(dataHora(S.portais[loja].pinApagadoEm))}. Crie um novo em Equipe.</p>` : "";
+  return `${pinApagado}<div class="linha entre"><h1>Início</h1><span class="soft">${esc(lojaNome(loja))} · ${esc(new Intl.DateTimeFormat("pt-BR", { timeZone: TZ, weekday: "long", day: "2-digit", month: "2-digit" }).format(new Date()))}</span></div>
+    <div class="kpis">${kpi(abertas, "Abertas agora", "hoje e do mês", false, "quadro")}${kpi(aprovar, "Para aprovar", "esperando você", false, "aprovar")}${kpi(atrasadas, "Atrasadas", "passou do prazo", atrasadas > 0, "quadro", atrasadas ? "atrasada" : "", escopoDe((t) => statusVisivel(t) === "atrasada"))}${kpi(semResp, "Sem responsável", "em A distribuir", semResp > 0, "quadro", "", escopoDe((t) => !resps(t).length && !concluida(t) && t.status !== "enviada"))}</div>
     <section class="pilha"><div class="linha entre"><h2>Precisa de atenção</h2>${h?.estado === "ok" || h?.estado === "erro" ? `<button class="btn ghost sm" data-action="atualizarHist">Atualizar</button>` : ""}</div>${blocoAtencao(loja, h)}</section>
     <section class="pilha"><div class="linha entre"><h2>Desempenho da equipe</h2><div class="seg" role="group" aria-label="Período"><button data-action="periodoEq" data-p="7" aria-pressed="${per === 7}">7 dias</button><button data-action="periodoEq" data-p="30" aria-pressed="${per === 30}">30 dias</button></div></div>${blocoEquipe(loja, h, per)}</section>`;
 }
@@ -1078,13 +1081,13 @@ function telaEquipe(loja) {
       <label class="f">Função<select class="f" name="funcao">${Object.values(S.org.setores || {}).map((v) => `<option>${esc(v)}</option>`).join("")}<option>Outra</option></select></label>
       <p class="erro" id="erroFunc" role="alert"></p><button class="btn primary block" type="submit">Cadastrar</button></form>
     <section class="pilha">${todos.length ? todos.map(([id, f]) => `<div class="cartao" style="grid-template-columns:auto minmax(0,1fr) auto;align-items:center"><span class="av" style="background:var(--surface-2);color:var(--ink)" aria-hidden="true">${esc(iniciais(f.nome))}</span><span><b>${esc(f.nome)}</b><br><span class="soft small">${esc(f.funcao || "")} · <span class="num">${abertas(id)}</span> tarefas abertas${f.ativo === false ? " · inativo" : ""}</span></span><button class="btn secondary sm" data-action="editarFunc" data-id="${esc(id)}">Editar</button></div>`).join("") : vazio("Nenhum funcionário ainda", "Cadastre acima quem trabalha nesta loja.", "", false)}</section>
-    <section class="cartao"><h2>PIN da gerência</h2><p class="soft">${pin ? "A Gerência pede PIN neste portal." : "Sem PIN: qualquer pessoa neste aparelho entra na Gerência."} O PIN evita engano no aparelho da loja; não é uma senha forte.</p>
+    <section class="cartao"><h2>PIN da gerência</h2>${S.portais[loja]?.pinApagadoEm ? `<p class="alerta">${I.alerta}O PIN foi apagado pelo “Esqueci o PIN” em ${esc(dataHora(S.portais[loja].pinApagadoEm))}. Crie um novo.</p>` : ""}<p class="soft">${pin ? "A Gerência pede PIN neste portal." : "Sem PIN: qualquer pessoa neste aparelho entra na Gerência."} O PIN evita engano no aparelho da loja; não é uma senha forte.</p>
       <form class="linha" data-action="salvarPin"><input type="password" name="novoPin" inputmode="numeric" maxlength="8" placeholder="Novo PIN (4 a 8 números)" style="flex:1;min-width:180px" autocomplete="off"><button class="btn secondary sm" type="submit">${pin ? "Trocar PIN" : "Criar PIN"}</button>${pin ? '<button class="btn ghost sm" type="button" data-action="tirarPin">Tirar PIN</button>' : ""}</form><p class="erro" id="erroPinCfg" role="alert"></p></section>`;
 }
 function telaMais(loja) {
   const ops = [["rotinas", "Rotinas", "rotinas", "Tarefas que se repetem e a última vez de cada uma"], ["painel", "Painel da loja", "painel", "Aprovadas, atrasadas e nota da loja"]];
   const copia = S.local ? `<section class="cartao"><h2>Cópia dos dados</h2><p class="soft">Neste modo os dados ficam só neste aparelho. Faça uma cópia de vez em quando e guarde em lugar seguro; com ela você também passa os dados para outro aparelho.</p>
-    <div class="linha"><button class="btn secondary" data-action="exportarLocal">Salvar cópia</button><label class="btn ghost" style="cursor:pointer">Restaurar cópia<input type="file" accept="application/json,.json" data-action="importarLocal" style="position:absolute;opacity:0;width:1px;height:1px"></label></div></section>` : "";
+    <div class="linha"><button class="btn secondary" data-action="exportarLocal">Salvar cópia</button><label class="btn ghost" style="cursor:pointer">Restaurar cópia<input type="file" accept=".txt,.json,text/plain,application/json" data-action="importarLocal" style="position:absolute;opacity:0;width:1px;height:1px"></label></div></section>` : "";
   return `<h1>Mais</h1>${copia}<div class="pilha">${ops.map(([id, l, ic, d]) => `<button class="lt" style="grid-template-columns:36px minmax(0,1fr) auto" data-action="tela" data-tela="${id}"><span style="color:var(--action);width:28px;height:28px">${I[ic]}</span><span><span class="tt">${l}</span><span class="m">${d}</span></span>${I.seta}</button>`).join("")}
     <button class="lt" style="grid-template-columns:36px minmax(0,1fr) auto" data-action="ajuda"><span style="color:var(--action);width:28px;height:28px">${I.ajuda}</span><span><span class="tt">Como usar</span><span class="m">Passo a passo</span></span>${I.seta}</button>
     <button class="lt" style="grid-template-columns:36px minmax(0,1fr) auto" data-action="sairPortal"><span style="color:var(--action);width:28px;height:28px">${I.trocar}</span><span><span class="tt">Trocar de loja</span><span class="m">Voltar para a escolha do portal</span></span>${I.seta}</button></div>`;
@@ -1237,9 +1240,10 @@ function renderModal() {
     el.hidden = false; return;
   }
   const t = acharTarefa(m.ref); if (!t) { S.modal = null; el.hidden = true; return; }
+  const feitoAte = (x, pl) => { const it = Object.values(x?.respostas || {}).filter((r) => r?.ok != null).length, md = midiasDe(x).length; const p = [pl ? "já começaram" : "já começou"]; if (it) p.push(`${pl ? "marcaram" : "marcou"} ${it} ${it > 1 ? "itens" : "item"}`); if (md) p.push(`${pl ? "mandaram" : "mandou"} ${md > 1 ? md + " fotos ou vídeos" : "foto ou vídeo"}`); return p.length > 1 ? p.slice(0, -1).join(", ") + " e " + p.at(-1) : p[0]; };
   if (m.tipo === "tirarResp") {
     const x = tentativaAtual(t); const eq = equipeTentativa(x); const quem = nomesLista(t.loja, eq);
-    el.innerHTML = `<div class="scrim" data-action="fecharModal"></div><div class="dlg" role="dialog" aria-modal="true" aria-labelledby="dlgT"><h2 id="dlgT">Encerrar o envio em andamento?</h2><p class="soft">${esc(t.titulo)}</p><p>${esc(quem)} ${eq.length > 1 ? "já começaram" : "já começou"} e marcou itens${midiasDe(x).length ? " ou mandou foto ou vídeo" : ""}. Quem fizer depois começa do zero; o que foi feito fica guardado no histórico da tarefa.</p>
+    el.innerHTML = `<div class="scrim" data-action="fecharModal"></div><div class="dlg" role="dialog" aria-modal="true" aria-labelledby="dlgT"><h2 id="dlgT">Encerrar o envio em andamento?</h2><p class="soft">${esc(t.titulo)}</p><p>${esc(quem)} ${feitoAte(x, eq.length > 1)}. Quem fizer depois começa do zero; o que foi feito fica guardado no histórico da tarefa.</p>
       <div class="linha" style="justify-content:flex-end"><button class="btn ghost" data-action="fecharModal">Voltar</button><button class="btn danger" data-action="confirmarResps">Encerrar e trocar</button></div></div>`;
     el.hidden = false; return;
   }
@@ -1346,10 +1350,10 @@ async function porNoQuadroHoje(loja, rid) {
 // ===========================================================================
 async function criarLocal(cfg) {
   let ativa = true;
-  if (navigator.locks) await new Promise((ok) => { navigator.locks.request("ede-gestao-aba", { steal: true }, () => { ok(); return new Promise(() => {}); }).catch(() => { ativa = false; S.erroGeral = "outraAba"; render(); }); });
+  if (navigator.locks) await new Promise((ok) => { let tinha = false; navigator.locks.request("ede-gestao-aba", { steal: true }, () => { tinha = true; ok(); return new Promise(() => {}); }).catch((e) => { if (tinha && e?.name === "AbortError") { ativa = false; S.erroGeral = "outraAba"; render(); } else ok(); }); });
   const pedido = (req) => new Promise((ok, er) => { req.onsuccess = () => ok(req.result); req.onerror = () => er(req.error); });
-  const abrir = indexedDB.open("ede-gestao", 1);
-  abrir.onupgradeneeded = () => { abrir.result.createObjectStore("docs"); abrir.result.createObjectStore("meta"); };
+  const abrir = indexedDB.open("ede-gestao", 2);
+  abrir.onupgradeneeded = () => { for (const n of ["docs", "meta", "restaurar"]) if (!abrir.result.objectStoreNames.contains(n)) abrir.result.createObjectStore(n); };
   const idb = await pedido(abrir);
   const guarda = (nome, modo = "readonly") => idb.transaction(nome, modo).objectStore(nome);
   const ehMidia = (p) => p.startsWith("midias/");
@@ -1395,24 +1399,44 @@ async function criarLocal(cfg) {
   S.backup = {
     async exportar() {
       try {
-        const ks = await pedido(guarda("docs").getAllKeys()); const partes = [`{"app":"ede-gestao","versao":1,"salvoEm":${JSON.stringify(new Date().toISOString())},"docs":{`];
+        // Uma linha por registro: dá para ler aos poucos na restauração, sem montar um texto gigante.
+        const ks = await pedido(guarda("docs").getAllKeys()); const partes = [JSON.stringify({ app: "ede-gestao", versao: 2, salvoEm: new Date().toISOString(), total: ks.length }) + "\n"];
         for (let i = 0; i < ks.length; i += 100) {
           const faixa = IDBKeyRange.bound(ks[i], ks[Math.min(i + 99, ks.length - 1)]); const st = guarda("docs");
           const [kk, vs] = await Promise.all([pedido(st.getAllKeys(faixa)), pedido(st.getAll(faixa))]);
-          partes.push(new Blob(kk.map((k, j) => (i + j ? "," : "") + JSON.stringify(k) + ":" + JSON.stringify(vs[j]))));
+          partes.push(new Blob(kk.map((k, j) => JSON.stringify([k, vs[j]]) + "\n")));
         }
-        partes.push("}}"); salvarArquivo({ filename: `ede-gestao-copia-${hoje()}.json`, data: new Blob(partes, { type: "application/json" }) });
+        salvarArquivo({ filename: `ede-gestao-copia-${hoje()}.txt`, data: new Blob(partes, { type: "text/plain" }) });
         aviso("Cópia salva. Guarde o arquivo em lugar seguro.");
       } catch (e) { console.error(e); aviso("Não consegui gerar a cópia: os dados ficaram grandes demais para este aparelho.", "erro"); }
     },
+    // Restaurar: lê a cópia aos poucos para uma área separada e só no fim troca tudo numa transação (se faltar espaço, os dados de antes ficam).
     async importar(file) {
-      let dados; try { dados = JSON.parse(await file.text()); } catch { return aviso("Esse arquivo não é uma cópia do Éde Gestão.", "erro"); }
-      if (dados?.app !== "ede-gestao" || !dados.docs || typeof dados.docs !== "object") return aviso("Esse arquivo não é uma cópia do Éde Gestão.", "erro");
-      if (!confirm(`Restaurar a cópia de ${dataHora(dados.salvoEm) || "data desconhecida"}? Os dados atuais deste aparelho serão trocados pelos da cópia.`)) return;
-      const t = idb.transaction(["docs", "meta"], "readwrite"); t.objectStore("docs").clear(); t.objectStore("meta").clear();
-      for (const [k, v] of Object.entries(dados.docs)) { t.objectStore("docs").put(v, k); if (ehMidia(k) && k.split("/").length === 2) t.objectStore("meta").put(leve(v), k); }
-      try { await new Promise((ok, er) => { t.oncomplete = ok; t.onerror = () => er(t.error); t.onabort = () => er(t.error || new Error("abortada")); }); }
-      catch (e) { console.error(e); return aviso("Não deu para restaurar: falta espaço no aparelho ou a cópia é grande demais. Os dados de antes continuam.", "erro"); }
+      if (!ativa) return aviso("O Éde Gestão foi aberto em outra aba. Use a aba mais nova.", "erro");
+      if (!confirm("Restaurar esta cópia? Os dados atuais deste aparelho serão trocados pelos da cópia.")) return;
+      const fim = (t) => new Promise((ok, er) => { t.oncomplete = ok; t.onerror = () => er(t.error); t.onabort = () => er(t.error || new Error("abortada")); });
+      const lote = async (pares) => { const t = idb.transaction("restaurar", "readwrite"); const o = t.objectStore("restaurar"); for (const [k, v] of pares) o.put(v, k); await fim(t); };
+      try {
+        await pedido(guarda("restaurar", "readwrite").clear()); let total = 0;
+        if ((await file.slice(0, 40).text()).startsWith('{"app":"ede-gestao","versao":1')) { // cópia antiga, num JSON só
+          if (file.size > 300e6) throw new Error("grande");
+          const d = JSON.parse(await file.text()); if (d?.app !== "ede-gestao" || !d.docs || typeof d.docs !== "object") throw new Error("formato");
+          const ent = Object.entries(d.docs); for (let i = 0; i < ent.length; i += 100) await lote(ent.slice(i, i + 100)); total = ent.length;
+        } else {
+          const leitor = file.stream().pipeThrough(new TextDecoderStream()).getReader(); let resto = "", cab = null, pend = [];
+          const linha = async (l) => { if (!l.trim()) return; if (!cab) { cab = JSON.parse(l); if (cab?.app !== "ede-gestao") throw new Error("formato"); return; } const par = JSON.parse(l); if (!Array.isArray(par) || typeof par[0] !== "string") throw new Error("formato"); pend.push(par); total++; if (pend.length >= 100) { await lote(pend); pend = []; } };
+          for (;;) { const { value, done } = await leitor.read(); if (done) break; resto += value; const ls = resto.split("\n"); resto = ls.pop(); for (const l of ls) await linha(l); }
+          await linha(resto); if (!cab) throw new Error("formato"); if (pend.length) await lote(pend);
+        }
+        if (!total) throw new Error("formato");
+        const t = idb.transaction(["docs", "meta", "restaurar"], "readwrite"); const D = t.objectStore("docs"), M = t.objectStore("meta"), R = t.objectStore("restaurar");
+        D.clear(); M.clear();
+        R.openCursor().onsuccess = (ev) => { const c = ev.target.result; if (!c) { R.clear(); return; } D.put(c.value, c.key); if (ehMidia(c.key) && c.key.split("/").length === 2) M.put(leve(c.value), c.key); c.continue(); };
+        await fim(t);
+      } catch (e) {
+        console.error(e); try { await pedido(guarda("restaurar", "readwrite").clear()); } catch {}
+        return aviso(e?.message === "formato" || e instanceof SyntaxError ? "Esse arquivo não é uma cópia do Éde Gestão." : e?.message === "grande" ? "Esta cópia antiga é grande demais para restaurar neste aparelho." : "Não deu para restaurar: falta espaço no aparelho. Os dados de antes continuam.", "erro");
+      }
       location.reload();
     },
   };
@@ -1487,6 +1511,7 @@ document.addEventListener("click", async (ev) => {
     else if (act === "novaCom") { S.novaPre = { titulo: a.dataset.titulo, instr: a.dataset.instr, tipo: "diaria", de: "inicio" }; S.tela = "nova"; render(); window.scrollTo(0, 0); }
     else if (act === "verPessoa") { S.tela = "quadro"; S.filtro = null; render(); window.scrollTo(0, 0); const b = $(".board"); const c = b?.querySelector(`.col[data-col="${CSS.escape(a.dataset.id)}"]`); if (c) b.scrollLeft = c.offsetLeft - b.offsetLeft - 4; }
     else if (act === "exportarLocal") { await S.backup?.exportar(); }
+    else if (act === "esqueciPin") { if (!S.local || !confirm("Apagar o PIN da gerência desta loja? Antes disso uma cópia dos dados é salva, e a tela Equipe e o Início vão mostrar que o PIN foi apagado.")) return; await S.backup?.exportar(); await S.db.doc(`portais/${S.portal}`).update({ pinHash: null, pinApagadoEm: new Date().toISOString() }); aviso("PIN apagado. Crie um novo em Equipe."); render(); }
     else if (act === "escopo") { S.escopo = a.dataset.e; render(); }
     else if (act === "filtro") { S.filtro = a.dataset.f || null; render(); }
     else if (act === "irCol") { const b = $(".board"); const c = b?.querySelector(`.col[data-col="${CSS.escape(a.dataset.colId)}"]`); if (c) b.scrollTo({ left: c.offsetLeft - b.offsetLeft - 4, behavior: reduzMov() ? "auto" : "smooth" }); }
@@ -1576,7 +1601,7 @@ document.addEventListener("submit", async (ev) => {
       S.modal = null; renderModal(); aviso("Funcionário salvo.");
     } else if (act === "salvarPin") {
       const p = String(fd.get("novoPin") || ""); if (!/^\d{4,8}$/.test(p)) { $("#erroPinCfg").textContent = "O PIN precisa ter de 4 a 8 números."; return; }
-      const h = await sha256Hex(new TextEncoder().encode(loja + ":" + p)); await S.db.doc(`portais/${loja}`).update({ pinHash: h }); sessao.set("ede.lib." + loja, h); f.reset(); aviso("PIN salvo. Anote e passe só para quem é da gerência.");
+      const h = await sha256Hex(new TextEncoder().encode(loja + ":" + p)); await S.db.doc(`portais/${loja}`).update({ pinHash: h, pinApagadoEm: null }); sessao.set("ede.lib." + loja, h); f.reset(); aviso("PIN salvo. Anote e passe só para quem é da gerência.");
     }
   } catch (e) { const el = $("#erroDlg") || $("#erroNova") || $("#erroFunc"); const m = erroSalvar(e); if (el) el.textContent = m; else aviso(m, "erro"); }
 });

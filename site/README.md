@@ -28,7 +28,11 @@ Versão em site (link do claude.ai) do Éde Gestão. Cada loja (Primavera, Castr
 
 ## Arquivo local
 
-`local/ede-gestao.html` abre direto no navegador (dois cliques no computador; no celular, abrir pelo app de arquivos ou pelo navegador). Os dados ficam só naquele aparelho e naquele navegador; em **Gerência › Mais › Cópia dos dados** dá para salvar uma cópia e restaurar (inclusive em outro aparelho). Sem o claude.ai, cada aparelho tem os seus próprios dados: para a equipe toda usar junto, use o link publicado.
+`local/ede-gestao.html` abre direto no navegador (dois cliques no computador; no celular, abrir pelo app de arquivos ou pelo navegador). Os dados ficam só naquele aparelho e naquele navegador; a cópia dos dados (um arquivo `.txt`, uma linha por registro) é salva pela tela de portais ou em **Gerência › Mais**, e restaurada em **Gerência › Mais** (inclusive em outro aparelho). Sem o claude.ai, cada aparelho tem os seus próprios dados: para a equipe toda usar junto, use o link publicado.
+
+- Use uma aba só: se o arquivo for aberto de novo, a aba antiga para de gravar e avisa.
+- O PIN da gerência vale para todos no arquivo local. **Esqueci o PIN** (na tela do PIN) salva uma cópia, apaga o PIN e deixa um aviso no Início e em Equipe.
+- Fotos e vídeos ficam no aparelho e não são apagados sozinhos; com o tempo, salve a cópia e libere espaço.
 
 ## Dados no banco
 

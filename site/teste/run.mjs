@@ -208,7 +208,7 @@ confere(alertas.some((a) => /Faz 12 dias que não fazem “Limpeza das mercadori
 confere(alertas.some((a) => /ninguém faz “Fechamento da loja”/.test(a) && /^URGENTE/i.test(a)), 'análise: fechamento parado (urgente)');
 confere(alertas.some((a) => /Aos sábados, “Limpeza” quase nunca é feita/.test(a)), 'análise: limpeza falha aos sábados');
 confere(alertas.some((a) => /“Banheiro limpo e abastecido \(papel e sabonete\)” teve problema 3 vezes/.test(a) && /Faltou sabonete/.test(a)), 'análise: item com problema repetido');
-confere(alertas.some((a) => /“Caixa” costuma ser enviada depois do horário/.test(a)), 'análise: caixa costuma atrasar');
+confere(alertas.some((a) => /rotinas costumam ser enviadas depois do horário/.test(a) && /Caixa \(7 de 10/.test(a)), 'análise: rotinas que costumam atrasar num aviso só (caixa 7 de 10)');
 confere(!alertas.some((a) => /Organização geral do estoque/.test(a)), 'análise: estoque organizado há 3 dias não gera alerta');
 const hojeDoc = await p.evaluate(() => { for (const [k, d] of window.__store) if (k.startsWith('diarias/primavera_') && d.data === new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date())) return Object.keys(d.tarefas); return []; });
 confere(hojeDoc.includes('r_limpeza_alto') && !hojeDoc.includes('r_organizar_estoque'), 'rotina a cada 7 dias: entra hoje só a que passou do prazo');
@@ -403,6 +403,13 @@ confere(/ede-gestao/.test(await p.evaluate(() => window.__download?.filename || 
 await p.click('[data-action="ajuda"]').catch(() => {});
 confere(await overflow(p) <= 0, 'celular sem rolagem lateral: ' + await overflow(p));
 passo('arquivos enviados ao armazenamento: ' + await p.evaluate(() => window.__uploads));
+// avulsas aprovadas ontem: "falta"/"limpar o balcão" não conta como limpeza do alto; "Retirar o pó das prateleiras de cima" conta
+const avulsaOntem = (titulo) => p.evaluate((titulo) => { const tz = (d) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(d); const ontem = tz(new Date(Date.now() - 864e5)); const d = window.__store.get('diarias/primavera_' + ontem); const ag = new Date(Date.now() - 864e5).toISOString(); d.tarefas['a_' + titulo.length] = { avulsa: true, titulo, instrucoes: '', responsaveis: ['f_pri3'], responsavel: 'f_pri3', inicio: ag, prazo: ag, exigeMidia: false, exigeAprovacao: true, peso: 1, itens: {}, status: 'aprovada', n: 1, tentativas: { 1: { por: 'f_pri3', participantes: { f_pri3: ag }, inicio: ag, envio: ag, respostas: {}, midias: {}, obs: '', revisao: { decisao: 'aprovada', em: ag } } } }; window.__notify(); }, titulo);
+await trocarPessoa(p, 'gerencia'); await p.click('.nav [data-tela="inicio"]'); await p.waitForSelector('.alr');
+await avulsaOntem('Repor o que falta e limpar o balcão'); await p.click('[data-action="atualizarHist"]'); await p.waitForTimeout(400);
+confere(await p.locator('.alr', { hasText: 'Limpeza das mercadorias de cima' }).count() === 1, 'palavras: "falta" não conta como "alta"');
+await avulsaOntem('Retirar o pó das prateleiras de cima'); await p.click('[data-action="atualizarHist"]'); await p.waitForTimeout(400);
+confere(await p.locator('.alr', { hasText: 'Limpeza das mercadorias de cima' }).count() === 0, 'palavras: "Retirar o pó das prateleiras de cima" conta como a rotina');
 await ctx.close();
 
 // ---------------------------------------------------------------------------
@@ -521,16 +528,23 @@ await l.evaluate(() => sessionStorage.clear());
 await l.keyboard.press('Escape'); await l.click('.chip-top'); await l.click('.menu [data-action="trocarPessoa"]'); await l.click('.pessoa[data-id="gerencia"]');
 confere(await l.locator('#pinEntrada').count() === 1, 'local: Gerência pede o PIN');
 await l.fill('#pinEntrada', '2468'); await l.click('form[data-action="pin"] button[type="submit"]'); await l.waitForSelector('.nav');
+await l.click('.marca'); await l.waitForSelector('.portal');
+confere(await l.locator('h2', { hasText: 'Visão das 3 lojas' }).count() === 0, 'local: com PIN, a Visão das 3 lojas não fica aberta a todos');
+await l.evaluate(() => sessionStorage.clear()); await l.click('.portal[data-loja="primavera"]'); await l.waitForSelector('#pinEntrada'); // lembra que era a Gerência
+const [dlPin] = await Promise.all([l.waitForEvent('download'), l.click('[data-action="esqueciPin"]')]); await dlPin.path();
+await l.waitForSelector('.nav');
+confere(/foi apagado pelo “Esqueci o PIN”/.test(await l.locator('main').textContent()), 'local: Esqueci o PIN salva cópia, entra e deixa aviso no Início');
 // cópia e restauração
 await l.click('.nav [data-tela="mais"]');
 const [dl] = await Promise.all([l.waitForEvent('download'), l.click('[data-action="exportarLocal"]')]);
 const COPIA = path.join(OUT, 'copia-local.json'); await dl.saveAs(COPIA);
-const copia = JSON.parse(fs.readFileSync(COPIA, 'utf8'));
-confere(copia.app === 'ede-gestao' && Object.keys(copia.docs).some((k) => k.startsWith('midias/')), 'local: cópia salva com as tarefas e a foto (' + Object.keys(copia.docs).length + ' registros)');
+const linhasCopia = fs.readFileSync(COPIA, 'utf8').split('\n').filter(Boolean); const cabCopia = JSON.parse(linhasCopia[0]); const chavesCopia = linhasCopia.slice(1).map((x) => JSON.parse(x)[0]);
+confere(cabCopia.app === 'ede-gestao' && cabCopia.total === chavesCopia.length && chavesCopia.some((k) => k.startsWith('midias/')), 'local: cópia salva com as tarefas e a foto (' + chavesCopia.length + ' registros)');
 await l.click('.nav [data-tela="quadro"]'); await l.click('[data-tela="nova"]'); await l.fill('input[name="titulo"]', 'Depois da cópia');
 await l.click('form[data-action="criar"] button[type="submit"]'); await l.waitForTimeout(400);
 await l.click('.nav [data-tela="mais"]');
 await Promise.all([l.waitForEvent('load'), l.locator('input[data-action="importarLocal"]').setInputFiles(COPIA)]);
+await l.waitForSelector('.nav, #pinEntrada'); if (await l.locator('#pinEntrada').count()) { await l.fill('#pinEntrada', '2468'); await l.click('form[data-action="pin"] button[type="submit"]'); }
 await l.waitForSelector('.nav'); await l.click('.nav [data-tela="quadro"]'); await l.waitForTimeout(400);
 confere(await l.locator('[data-kcard]', { hasText: 'Depois da cópia' }).count() === 0 && await l.locator('[data-kcard]', { hasText: 'Teste do arquivo local' }).count() === 1, 'local: restaurar a cópia volta os dados');
 await shot(l, '25-local-quadro');

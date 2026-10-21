@@ -34,6 +34,26 @@ $$;
 comment on function private.current_org_id() is
   'Organização do usuário logado, pelos vínculos vigentes (perfil ativo). Nulo se não houver vínculo vigente ou se eles forem de mais de uma organização (falha fechada).';
 
+-- Organização a que o usuário logado pertence ou pertenceu, por QUALQUER vínculo (vigente,
+-- futuro ou encerrado) e com qualquer situação do perfil. Uma pessoa, uma organização (D21);
+-- se houver mais de uma, nula (falha fechada). Só para o canal do titular (LGPD, D78): quem
+-- saiu ou foi desativado continua podendo pedir correção ou exportação dos próprios dados.
+-- Não dá acesso a nada da operação.
+create function private.home_org_id()
+returns uuid
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select case when count(distinct m.organization_id) = 1 then (array_agg(m.organization_id))[1] end
+  from public.memberships m
+  where m.profile_id = auth.uid()
+$$;
+
+comment on function private.home_org_id() is
+  'Organização dos vínculos do usuário logado, vigentes ou não, com qualquer situação do perfil (nula se não houver vínculo ou se houver mais de uma organização). Usada só no pedido do titular (LGPD), que continua aberto a quem saiu.';
+
 -- Lojas em que o usuário logado tem vínculo vigente com um dos papéis pedidos.
 -- Vínculo de rede (store_id nulo) de owner/admin vale para todas as lojas da organização.
 create function private.current_store_ids(p_roles public.membership_role[])
@@ -289,10 +309,53 @@ $$;
 comment on function private.can_execute_task(uuid) is
   'Verdadeiro se o usuário logado é colaborador vigente da loja e a tarefa é dele ou da equipe do seu setor.';
 
+-- A tarefa ainda é de quem iniciou a tentativa aberta? (a mesma regra de
+-- can_execute_task, para uma pessoa qualquer em vez do usuário logado). Usada na
+-- passagem da tarefa para outra pessoa: nulo = continua com ela; senão, o motivo.
+create function private.stale_attempt_reason(p_task_id uuid, p_profile_id uuid)
+returns text
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  with staff as (
+    select m.sector_id
+    from public.tasks t
+    join public.memberships m
+      on m.organization_id = t.organization_id
+     and m.store_id = t.store_id
+    join public.profiles p on p.id = m.profile_id
+    where t.id = p_task_id
+      and m.profile_id = p_profile_id
+      and m.role = 'staff'
+      and p.status = 'active'
+      and m.starts_at <= now()
+      and (m.ends_at is null or m.ends_at > now())
+  )
+  select case
+    when not exists (select 1 from staff) then 'access_lost'
+    when exists (
+      select 1
+      from public.tasks t
+      where t.id = p_task_id
+        and (
+          t.assignee_id = p_profile_id
+          or (t.assignee_id is null and t.sector_id in (select s.sector_id from staff s))
+        )
+    ) then null
+    else 'reassigned'
+  end
+$$;
+
+comment on function private.stale_attempt_reason(uuid, uuid) is
+  'Nulo se a pessoa ainda pode executar a tarefa (colaborador vigente da loja e a tarefa é dela ou da equipe do seu setor). Senão, o motivo para encerrar a tentativa aberta dela: access_lost (sem vínculo vigente de colaborador na loja ou perfil inativo) ou reassigned (a tarefa é de outra pessoa ou de outro setor).';
+
 -- -----------------------------------------------------------------------------
 -- Privilégios: nada para public/anon; policies rodam como authenticated
 -- -----------------------------------------------------------------------------
 revoke all on function private.current_org_id() from public, anon;
+revoke all on function private.home_org_id() from public, anon;
 revoke all on function private.current_store_ids(public.membership_role[]) from public, anon;
 revoke all on function private.has_role(public.membership_role[]) from public, anon;
 revoke all on function private.is_owner() from public, anon;
@@ -303,8 +366,10 @@ revoke all on function private.can_manage_membership(uuid, public.membership_rol
 revoke all on function private.can_manage_template(uuid) from public, anon;
 revoke all on function private.can_manage_pending_task(uuid) from public, anon;
 revoke all on function private.can_execute_task(uuid) from public, anon;
+revoke all on function private.stale_attempt_reason(uuid, uuid) from public, anon;
 
 grant execute on function private.current_org_id() to authenticated;
+grant execute on function private.home_org_id() to authenticated;
 grant execute on function private.current_store_ids(public.membership_role[]) to authenticated;
 grant execute on function private.has_role(public.membership_role[]) to authenticated;
 grant execute on function private.is_owner() to authenticated;

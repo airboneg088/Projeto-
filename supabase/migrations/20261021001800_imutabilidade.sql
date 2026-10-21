@@ -8,8 +8,10 @@
 --   evidences                    : sem DELETE; UPDATE só purged_at nulo -> agora,
 --                                  depois do prazo de retenção da organização
 --   reviews, review_item_flags   : sem UPDATE/DELETE
---   task_attempts                : sem DELETE; sem UPDATE depois de enviada
---   attempt_item_answers         : congeladas quando a tentativa é enviada
+--   task_attempts                : sem DELETE; sem UPDATE depois de enviada ou
+--                                  encerrada sem envio (abandoned_at)
+--   attempt_item_answers         : congeladas quando a tentativa é enviada ou
+--                                  encerrada sem envio
 --   tasks                        : sem DELETE (cancela-se com motivo)
 --   task_items                   : só mudam com a tarefa pendente e sem
 --                                  tentativas ('task_closed')
@@ -82,7 +84,8 @@ comment on function private.guard_evidence_change() is
 revoke all on function private.guard_evidence_change() from public, anon;
 
 -- -----------------------------------------------------------------------------
--- task_attempts: aberta aceita só envio (submitted_at, note); enviada congela
+-- task_attempts: aberta aceita só envio (submitted_at, note) ou encerramento sem
+-- envio (abandoned_at, abandoned_reason); enviada ou encerrada congela
 -- -----------------------------------------------------------------------------
 create function private.guard_attempt_change()
 returns trigger
@@ -101,12 +104,24 @@ begin
       using errcode = 'P0001', detail = 'Tentativa enviada não pode ser alterada.';
   end if;
 
-  if (to_jsonb(new) - array['note', 'submitted_at', 'submit_client_mutation_id'])
+  if old.abandoned_at is not null then
+    raise exception 'immutable'
+      using errcode = 'P0001', detail = 'Tentativa encerrada sem envio não pode ser alterada.';
+  end if;
+
+  if (to_jsonb(new) - array['note', 'submitted_at', 'submit_client_mutation_id', 'abandoned_at', 'abandoned_reason'])
      is distinct from
-     (to_jsonb(old) - array['note', 'submitted_at', 'submit_client_mutation_id']) then
+     (to_jsonb(old) - array['note', 'submitted_at', 'submit_client_mutation_id', 'abandoned_at', 'abandoned_reason']) then
     raise exception 'immutable'
       using errcode = 'P0001',
-            detail = 'Na tentativa aberta só mudam observação e dados do envio.';
+            detail = 'Na tentativa aberta só mudam observação, dados do envio e o encerramento sem envio.';
+  end if;
+
+  -- O encerramento sem envio é registrado com o relógio real do servidor (clock_timestamp,
+  -- não o início da transação: a tentativa pode ter sido iniciada depois de a transação que
+  -- a encerra começar; D81)
+  if new.abandoned_at is not null then
+    new.abandoned_at := clock_timestamp();
   end if;
 
   return new;
@@ -114,7 +129,7 @@ end;
 $$;
 
 comment on function private.guard_attempt_change() is
-  'Gatilho em task_attempts: bloqueia DELETE; depois do envio bloqueia qualquer UPDATE; antes, só note/submitted_at/submit_client_mutation_id mudam.';
+  'Gatilho em task_attempts: bloqueia DELETE; depois do envio ou do encerramento sem envio bloqueia qualquer UPDATE; antes, só note/submitted_at/submit_client_mutation_id e abandoned_at/abandoned_reason (com o horário do servidor) mudam.';
 
 revoke all on function private.guard_attempt_change() from public, anon;
 
@@ -146,10 +161,10 @@ begin
     select 1
     from public.task_attempts a
     where a.id = any (v_attempt_ids)
-      and a.submitted_at is not null
+      and (a.submitted_at is not null or a.abandoned_at is not null)
   ) then
     raise exception 'immutable'
-      using errcode = 'P0001', detail = 'Respostas de tentativa enviada não podem mudar.';
+      using errcode = 'P0001', detail = 'Respostas de tentativa enviada ou encerrada sem envio não podem mudar.';
   end if;
 
   if tg_op = 'DELETE' then
@@ -160,7 +175,7 @@ end;
 $$;
 
 comment on function private.guard_answer_change() is
-  'Gatilho em attempt_item_answers: bloqueia INSERT/UPDATE/DELETE quando a tentativa já foi enviada.';
+  'Gatilho em attempt_item_answers: bloqueia INSERT/UPDATE/DELETE quando a tentativa já foi enviada ou encerrada sem envio.';
 
 revoke all on function private.guard_answer_change() from public, anon;
 
@@ -200,6 +215,15 @@ begin
             detail = 'Os itens da tarefa só mudam com ela pendente e sem tentativas.';
   end if;
 
+  -- Item que veio da rotina não sai da tarefa (snapshot fiel, D75): tirar o item crítico do
+  -- fechamento de hoje apagaria a falha dos indicadores. Outro checklist = editar a rotina
+  -- (auditado, sobe a versão) ou criar tarefa avulsa.
+  if tg_op = 'DELETE' and old.template_item_id is not null then
+    raise exception 'invalid_snapshot'
+      using errcode = '23514',
+            detail = 'Item que veio da rotina não sai da tarefa: edite a rotina ou crie uma tarefa avulsa.';
+  end if;
+
   if tg_op = 'DELETE' then
     return old;
   end if;
@@ -208,7 +232,7 @@ end;
 $$;
 
 comment on function private.guard_task_item_change() is
-  'Gatilho em task_items: incluir, alterar ou remover item só com a tarefa pending e sem tentativas (task_closed), para qualquer papel: o snapshot de tarefa executada, aprovada ou cancelada não muda.';
+  'Gatilho em task_items: incluir, alterar ou remover item só com a tarefa pending e sem tentativas (task_closed), para qualquer papel: o snapshot de tarefa executada, aprovada ou cancelada não muda. Item com linhagem da rotina (template_item_id) nunca é removido (invalid_snapshot).';
 
 revoke all on function private.guard_task_item_change() from public, anon;
 

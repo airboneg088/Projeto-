@@ -25,7 +25,7 @@ create table public.organizations (
 alter table public.organizations enable row level security;
 
 comment on table public.organizations is 'A rede de lojas (ex.: Éde Utilidades). Raiz do isolamento entre clientes.';
-comment on column public.organizations.slug is 'Identificador curto e único, em minúsculas com hífens.';
+comment on column public.organizations.slug is 'Identificador curto e único, em minúsculas com hífens. Definido na criação da organização; não muda pela API (D84).';
 comment on column public.organizations.photo_retention_days is
   'Dias que as fotos de evidência ficam no storage antes do job de retenção remover o arquivo (padrão 180, mínimo 30). Nenhuma foto é marcada como removida (purged_at) antes desse prazo.';
 

@@ -78,7 +78,9 @@ grant update (read_at) on public.notifications to authenticated;
 
 -- Organização: admin altera dados (sem criar nem apagar pela API)
 revoke insert, update, delete on public.organizations from authenticated;
-grant update (name, slug, photo_retention_days) on public.organizations to authenticated;
+-- slug fica fora (D84): é único no banco inteiro, e trocar o próprio slug pelo de outra
+-- organização revelava (23505) que ela existe. É definido por quem cria a organização.
+grant update (name, photo_retention_days) on public.organizations to authenticated;
 
 -- Lojas: admin cria e altera (sem apagar; desativa com is_active)
 revoke insert, update, delete on public.stores from authenticated;

@@ -6,10 +6,14 @@
 --   profiles  -> só mudança de status            (profile_status_changed)
 --   tasks     -> criação por usuário logado         (insert; a geração pelo
 --                sistema segue os agendamentos, já auditados)
+--   task_items -> inclusão, alteração e remoção por usuário logado (o snapshot
+--                dos itens; a geração pelo sistema não é registrada linha a linha)
 --                quando vira cancelled            (task_cancelled)
 --                e edição de título, instruções, imagem, prioridade,
 --                responsável, janela ou prazo     (update)
 --   evidences -> só a remoção pela retenção       (evidence_purged)
+--   task_attempts -> só o encerramento sem envio  (attempt_abandoned: a tarefa
+--                passou para outra pessoa)
 --   data_requests (pedidos do titular, LGPD) -> insert/update/delete
 --
 -- actor_id = auth.uid() (nulo quando é o sistema). diff guarda só as colunas
@@ -75,12 +79,23 @@ begin
       return null;
     end if;
     v_action := 'evidence_purged';
+  elsif v_mode = 'attempt_abandon' then
+    if not (tg_op = 'UPDATE' and v_old ->> 'abandoned_at' is null and v_new ->> 'abandoned_at' is not null) then
+      return null;
+    end if;
+    v_action := 'attempt_abandoned';
   elsif v_mode = 'insert_by_user' then
     -- Criação pela API (usuário logado); a geração pelo sistema não é registrada aqui
     if not (tg_op = 'INSERT' and auth.uid() is not null) then
       return null;
     end if;
     v_action := 'insert';
+  elsif v_mode = 'by_user' then
+    -- Qualquer mudança pela API (usuário logado); a geração pelo sistema não é registrada
+    if auth.uid() is null then
+      return null;
+    end if;
+    v_action := lower(tg_op);
   elsif v_mode = 'profile_status' then
     if not (tg_op = 'UPDATE' and (v_old ->> 'status') is distinct from (v_new ->> 'status')) then
       return null;
@@ -123,6 +138,9 @@ begin
     when v_row ->> 'template_id' is not null then (
       select t.organization_id from public.task_templates t where t.id = (v_row ->> 'template_id')::uuid
     )
+    when v_row ->> 'task_id' is not null then (
+      select t.organization_id from public.tasks t where t.id = (v_row ->> 'task_id')::uuid
+    )
   end;
   v_org := coalesce(v_org, private.current_org_id());
 
@@ -144,7 +162,7 @@ end;
 $$;
 
 comment on function private.audit_row() is
-  'Gatilho AFTER de auditoria. Argumento: default (insert/update/delete), insert_by_user (insert só com usuário logado), task_cancel, evidence_purge ou profile_status. Grava em audit_log só as colunas alteradas (valores acima de 2 KB resumidos por private.audit_value).';
+  'Gatilho AFTER de auditoria. Argumento: default (insert/update/delete), insert_by_user (insert só com usuário logado), by_user (insert/update/delete só com usuário logado), task_cancel, evidence_purge, attempt_abandon ou profile_status. Grava em audit_log só as colunas alteradas (valores acima de 2 KB resumidos por private.audit_value).';
 
 revoke all on function private.audit_row() from public, anon;
 
@@ -189,6 +207,12 @@ create trigger tasks_audit_insert
   after insert on public.tasks
   for each row execute function private.audit_row('insert_by_user');
 
+-- Itens do snapshot (incluir, reescrever ou tirar item da tarefa pendente) pelo
+-- gerente/proprietária: ficam registrados como a edição dos dados da tarefa (D75)
+create trigger task_items_audit
+  after insert or update or delete on public.task_items
+  for each row execute function private.audit_row('by_user');
+
 create trigger tasks_audit_cancel
   after update of status on public.tasks
   for each row execute function private.audit_row('task_cancel');
@@ -202,6 +226,11 @@ create trigger tasks_audit_edit
 create trigger evidences_audit_purge
   after update of purged_at on public.evidences
   for each row execute function private.audit_row('evidence_purge');
+
+-- Tentativa aberta encerrada sem envio (a tarefa passou para outra pessoa)
+create trigger task_attempts_audit_abandon
+  after update of abandoned_at on public.task_attempts
+  for each row execute function private.audit_row('attempt_abandon');
 
 -- Pedido do titular (LGPD): abertura, tratamento e conclusão ficam registrados
 create trigger data_requests_audit

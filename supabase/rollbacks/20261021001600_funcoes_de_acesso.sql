@@ -1,5 +1,6 @@
 -- Desfaz 20261021001600_funcoes_de_acesso.sql.
 
+drop function private.stale_attempt_reason(uuid, uuid);
 drop function private.can_execute_task(uuid);
 drop function private.can_manage_pending_task(uuid);
 drop function private.can_manage_template(uuid);
@@ -10,4 +11,5 @@ drop function private.is_admin();
 drop function private.is_owner();
 drop function private.has_role(public.membership_role[]);
 drop function private.current_store_ids(public.membership_role[]);
+drop function private.home_org_id();
 drop function private.current_org_id();

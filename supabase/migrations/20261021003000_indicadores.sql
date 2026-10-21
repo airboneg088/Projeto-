@@ -5,12 +5,20 @@
 --   - período por data LOCAL da loja: (due_at at time zone stores.timezone)::date
 --   - tarefas cancelled ficam fora de todas as contagens
 --   - submitted (aguardando aprovação) nunca conta como aprovada/concluída
+--   - atrasada = venceu sem envio (PRODUCT.md §7): não aprovada, prazo vencido e
+--     não está aguardando aprovação de um envio feito até o prazo (a demora da
+--     revisão do gerente não vira atraso de quem executou)
 --   - percentuais de 0 a 100 com 1 casa decimal; nulos quando o denominador é 0
 --   - pessoa da tarefa (nota por pessoa e filtro de pessoa do kpi_summary, a
---     mesma regra nos dois): quem executou a última tentativa (a aprovada, se
---     houver); sem tentativa, o responsável no prazo (assignee_at_due, se a
---     tarefa foi reatribuída depois de vencer) ou o atual; nulo = "Sem
---     responsável". Cada tarefa conta para uma pessoa só.
+--     mesma regra nos dois): aprovada = quem executou a tentativa aprovada;
+--     vencida e não aprovada = quem estava com a tarefa no prazo (a tentativa
+--     iniciada até o prazo e não encerrada antes dele, mesmo que encerrada
+--     depois numa reatribuição; sem ela, o responsável no prazo); antes do
+--     prazo = quem executou a última tentativa (tentativa encerrada sem envio,
+--     de quem passou a tarefa adiante, não conta) ou o responsável atual; nulo =
+--     "Sem responsável". Cada tarefa conta para uma pessoa só (D46, D74).
+--   - "1ª tentativa" = primeiro ENVIO (tentativa encerrada sem envio, numa
+--     passagem da tarefa, não conta; D73)
 --   - itens críticos reprovados contam para quem executou a tentativa reprovada
 -- =============================================================================
 
@@ -30,20 +38,42 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(
-    (
-      select a.performed_by
-      from public.task_attempts a
-      where a.task_id = p_task_id
-      order by a.attempt_number desc
-      limit 1
-    ),
-    case when p_assignee_at_due_recorded then p_assignee_at_due else p_assignee_id end
-  )
+  select case
+    -- Vencida e não aprovada: a falha é de quem estava com a tarefa no prazo. Uma
+    -- reatribuição depois do prazo (que encerra a tentativa aberta, D52) não tira a falha
+    -- dessa pessoa nem a joga em quem só socorreu (D46, D74).
+    when t.status <> 'approved' and t.due_at <= now() then coalesce(
+      (
+        select a.performed_by
+        from public.task_attempts a
+        where a.task_id = p_task_id
+          and a.started_at <= t.due_at
+          and (a.abandoned_at is null or a.abandoned_at > t.due_at)
+        order by a.attempt_number desc
+        limit 1
+      ),
+      case when p_assignee_at_due_recorded then p_assignee_at_due else p_assignee_id end
+    )
+    -- Aprovada ou ainda no prazo: quem executou a última tentativa (a aprovada, quando
+    -- houver; encerrada sem envio não conta); sem tentativa, o responsável
+    else coalesce(
+      (
+        select a.performed_by
+        from public.task_attempts a
+        where a.task_id = p_task_id
+          and a.abandoned_at is null
+        order by a.attempt_number desc
+        limit 1
+      ),
+      case when p_assignee_at_due_recorded then p_assignee_at_due else p_assignee_id end
+    )
+  end
+  from public.tasks t
+  where t.id = p_task_id
 $$;
 
 comment on function private.task_person(uuid, uuid, uuid, boolean) is
-  'Pessoa da tarefa nos indicadores: executor da última tentativa (a aprovada, quando houver); sem tentativa, o responsável no prazo (se reatribuída depois de vencer) ou o atual; nulo = equipe sem execução ("Sem responsável").';
+  'Pessoa da tarefa nos indicadores: aprovada = executor da tentativa aprovada; vencida e não aprovada = quem estava com ela no prazo (tentativa iniciada até o prazo e não encerrada antes dele; sem ela, o responsável no prazo, se reatribuída depois de vencer, ou o atual); antes do prazo = executor da última tentativa não encerrada, senão o responsável atual; nulo = equipe sem execução ("Sem responsável").';
 
 revoke all on function private.task_person(uuid, uuid, uuid, boolean) from public, anon;
 grant execute on function private.task_person(uuid, uuid, uuid, boolean) to authenticated, service_role;
@@ -84,8 +114,7 @@ as $$
       t.requires_approval,
       t.window_start_at,
       t.due_at,
-      t.created_at,
-      (t.status <> 'approved' and t.due_at < now()) as is_late
+      t.created_at
     from public.tasks t
     join public.stores s on s.id = t.store_id
     where t.status <> 'cancelled'
@@ -103,15 +132,30 @@ as $$
       b.*,
       fs.first_submitted_at,
       ap.approved_submitted_at,
-      ap.approved_attempt_number
+      ap.approved_first_submission,
+      -- Atrasada = venceu sem envio: não aprovada, prazo vencido e não aguardando a
+      -- revisão de um envio feito até o prazo (enviada a tempo continua "Aguardando
+      -- aprovação" mesmo depois do prazo; enviada depois do prazo ou reprovada conta)
+      (b.status <> 'approved'
+       and b.due_at < now()
+       and not (b.status = 'submitted' and coalesce(fs.last_submitted_at <= b.due_at, false))) as is_late
     from base b
     left join lateral (
-      select min(a.submitted_at) as first_submitted_at
+      select min(a.submitted_at) as first_submitted_at, max(a.submitted_at) as last_submitted_at
       from public.task_attempts a
       where a.task_id = b.id
     ) fs on true
     left join lateral (
-      select a.submitted_at as approved_submitted_at, a.attempt_number as approved_attempt_number
+      select
+        a.submitted_at as approved_submitted_at,
+        -- 1ª tentativa = 1º ENVIO: tentativa encerrada sem envio (passagem da tarefa, D52)
+        -- continua numerada, mas não é execução de ninguém (D73)
+        not exists (
+          select 1 from public.task_attempts a2
+          where a2.task_id = b.id
+            and a2.submitted_at is not null
+            and a2.attempt_number < a.attempt_number
+        ) as approved_first_submission
       from public.reviews r
       join public.task_attempts a on a.id = r.attempt_id
       where r.task_id = b.id and r.decision = 'approved'
@@ -134,7 +178,7 @@ as $$
       ) as n_approved_in_window,
       count(*) filter (where e.status = 'approved' and e.requires_approval) as n_approved_manual,
       count(*) filter (
-        where e.status = 'approved' and e.requires_approval and e.approved_attempt_number = 1
+        where e.status = 'approved' and e.requires_approval and e.approved_first_submission
       ) as n_approved_first,
       -- greatest(0, ...): duração nunca negativa (envio antes da abertura da janela,
       -- de dados antigos ou gravados pelo sistema, conta como zero)
@@ -168,7 +212,7 @@ as $$
 $$;
 
 comment on function public.kpi_summary(date, date, uuid[], uuid[], uuid[]) is
-  'Indicadores do período (datas locais da loja), sem canceladas. previstas: due_at no período; executadas: com ao menos uma tentativa enviada; aprovadas: status approved; atrasadas: não aprovadas com due_at < now(); pendentes: não aprovadas e não atrasadas; aguardando_aprovacao: submitted e não atrasadas (parte de pendentes); pct_aprovadas_na_janela: aprovadas com a tentativa aprovada enviada entre window_start_at e due_at ÷ previstas; pct_aprovadas_primeira_tentativa: aprovadas com exigência de aprovação na 1ª tentativa ÷ aprovadas com exigência de aprovação; media_min_atribuicao_envio: média de max(0, 1º envio − greatest(created_at, window_start_at)) em minutos; media_min_envio_revisao: média de (revisão − envio) nas revisões manuais; devolvidas: revisões rejected; adocao: executadas ÷ previstas. Filtro de pessoa: a pessoa da tarefa (private.task_person, a mesma da nota por pessoa).';
+  'Indicadores do período (datas locais da loja), sem canceladas. previstas: due_at no período; executadas: com ao menos uma tentativa enviada; aprovadas: status approved; atrasadas: venceram sem envio = não aprovadas, com due_at < now() e que não estão aguardando aprovação de um envio feito até o prazo; pendentes: não aprovadas e não atrasadas; aguardando_aprovacao: submitted e não atrasadas (enviadas até o prazo ou antes de vencer; parte de pendentes); pct_aprovadas_na_janela: aprovadas com a tentativa aprovada enviada entre window_start_at e due_at ÷ previstas; pct_aprovadas_primeira_tentativa: aprovadas com exigência de aprovação no 1º envio (tentativa encerrada sem envio não conta) ÷ aprovadas com exigência de aprovação; media_min_atribuicao_envio: média de max(0, 1º envio − greatest(created_at, window_start_at)) em minutos; media_min_envio_revisao: média de (revisão − envio) nas revisões manuais; devolvidas: revisões rejected; adocao: executadas ÷ previstas. Filtro de pessoa: a pessoa da tarefa (private.task_person, a mesma da nota por pessoa).';
 
 -- -----------------------------------------------------------------------------
 -- weighted_scores
@@ -182,6 +226,7 @@ create function public.weighted_scores(
 returns table (
   group_id uuid,
   group_name text,
+  store_id uuid,
   volume integer,
   peso_total integer,
   nota numeric,
@@ -268,8 +313,18 @@ begin
       case
         when g.g_id is null then 'Sem responsável'
         when p_group = 'store' then (select s.name from public.stores s where s.id = g.g_id)
-        when p_group = 'sector' then (select sc.name from public.sectors sc where sc.id = g.g_id)
+        -- Setores de mesmo nome existem em todas as lojas: o nome leva a loja
+        when p_group = 'sector' then (
+          select s.name || ' · ' || sc.name
+          from public.sectors sc
+          join public.stores s on s.id = sc.store_id
+          where sc.id = g.g_id
+        )
         else coalesce((select pr.full_name from public.profiles pr where pr.id = g.g_id), 'Nome indisponível')
+      end,
+      case
+        when p_group = 'store' then g.g_id
+        when p_group = 'sector' then (select sc.store_id from public.sectors sc where sc.id = g.g_id)
       end,
       g.g_volume::integer,
       g.g_weight::integer,
@@ -281,7 +336,7 @@ end;
 $$;
 
 comment on function public.weighted_scores(date, date, text, uuid[]) is
-  'Nota ponderada por loja, setor ou pessoa: 100 × Σ(peso das aprovadas) ÷ Σ(peso), sem canceladas, sempre com o volume e o peso atribuídos. person = private.task_person (executor da última tentativa; sem tentativa, o responsável no prazo ou o atual; nulo = "Sem responsável"), a mesma pessoa do filtro do kpi_summary. criticos_reprovados = marcações de itens críticos em reprovações dessas tarefas, por loja/setor da tarefa ou, por pessoa, para quem executou a tentativa reprovada (pode aparecer com volume 0).';
+  'Nota ponderada por loja, setor ou pessoa: 100 × Σ(peso das aprovadas) ÷ Σ(peso), sem canceladas, sempre com o volume e o peso atribuídos. store_id = loja do grupo (loja ou setor; nulo por pessoa); o nome do setor leva a loja ("Loja · Setor"), porque setores de mesmo nome existem em todas as lojas. person = private.task_person (aprovada: executor da tentativa aprovada; vencida sem aprovação: quem estava com a tarefa no prazo; antes do prazo: executor da última tentativa ou o responsável; nulo = "Sem responsável"), a mesma pessoa do filtro do kpi_summary. criticos_reprovados = marcações de itens críticos em reprovações dessas tarefas, por loja/setor da tarefa ou, por pessoa, para quem executou a tentativa reprovada (pode aparecer com volume 0).';
 
 -- -----------------------------------------------------------------------------
 -- top_failed_items

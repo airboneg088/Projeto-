@@ -35,4 +35,5 @@ drop function private.enforce_single_organization();
 
 drop function private.raise_rls_violation(text);
 drop function private.is_reference_path(text, uuid, uuid, uuid[]);
+drop function private.can_be_assignee(uuid, uuid, uuid);
 drop function private.is_member_of(uuid, uuid, uuid, boolean);

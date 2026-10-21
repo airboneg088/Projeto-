@@ -36,6 +36,17 @@ comment on column public.data_requests.resolved_by is
 comment on column public.data_requests.resolved_at is
   'Quando foi concluído: gravado pelo sistema quando a situação vira done/rejected (obrigatório nesses casos).';
 
+-- Um pedido em andamento por tipo e pessoa (D76): o titular não acumula pedidos abertos
+-- (nem por um POST em lote), então a fila do admin e o audit_log append-only não viram
+-- depósito. details tem até 4.000 caracteres: um pedido pendente por tipo basta; depois de
+-- atendido ou negado, abre outro.
+create unique index data_requests_one_open_per_kind
+  on public.data_requests (profile_id, kind)
+  where status in ('open', 'in_progress');
+
+comment on index public.data_requests_one_open_per_kind is
+  'No máximo um pedido do titular em andamento (open ou in_progress) por pessoa e tipo. Erro 23505 = "você já tem um pedido em andamento".';
+
 create trigger data_requests_set_updated_at
   before update on public.data_requests
   for each row execute function private.set_updated_at();

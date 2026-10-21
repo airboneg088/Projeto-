@@ -39,6 +39,11 @@ revoke all on function private.set_updated_at() from public, anon;
 -- -----------------------------------------------------------------------------
 -- Validação de fuso horário (usada em CHECK de stores.timezone)
 -- -----------------------------------------------------------------------------
+-- Só nomes IANA "Região/Cidade" que o Postgres conhece (D87). Especificações POSIX como
+-- 'UTC-3', 'GMT-3' e '-03' são aceitas pelo AT TIME ZONE, mas com o sinal invertido (valem
+-- UTC+3): o jeito comum de escrever o horário de Brasília jogaria todo "dia local da loja"
+-- 6 h para a frente. 'Etc/GMT-3' tem o mesmo problema; abreviações ('BRT') e as árvores
+-- posix/ e right/ do tzdata também ficam de fora.
 create function private.is_valid_timezone(p_timezone text)
 returns boolean
 language plpgsql
@@ -46,19 +51,17 @@ immutable
 set search_path = ''
 as $$
 begin
-  if p_timezone is null or btrim(p_timezone) = '' then
+  if p_timezone is null
+     or p_timezone !~ '^[A-Z][A-Za-z_]+(/[A-Za-z0-9_+-]+)+$'
+     or p_timezone ~ '^(Etc|posix|right|SystemV)/' then
     return false;
   end if;
-  perform now() at time zone p_timezone;
-  return true;
-exception
-  when invalid_parameter_value then
-    return false;
+  return exists (select 1 from pg_catalog.pg_timezone_names z where z.name = p_timezone);
 end;
 $$;
 
 comment on function private.is_valid_timezone(text) is
-  'Verdadeiro se o texto é um fuso IANA reconhecido pelo Postgres (ex.: America/Sao_Paulo).';
+  'Verdadeiro se o texto é um fuso IANA no formato Região/Cidade reconhecido pelo Postgres (ex.: America/Sao_Paulo). Recusa especificações POSIX (UTC-3, GMT-3, -03: sinal invertido), Etc/*, abreviações e as árvores posix/ e right/.';
 
 revoke all on function private.is_valid_timezone(text) from public, anon;
 -- CHECK constraints executam com o papel de quem grava a linha

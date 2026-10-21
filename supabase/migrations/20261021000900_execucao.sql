@@ -1,7 +1,8 @@
 -- =============================================================================
 -- Execução: tentativas, respostas do checklist e evidências (fotos).
 -- Escrita só pelas funções RPC (start_attempt, answer_item, register_evidence,
--- submit_attempt). Tentativa enviada e evidências são imutáveis (gatilhos).
+-- submit_attempt). Tentativa enviada ou encerrada sem envio e evidências são
+-- imutáveis (gatilhos).
 -- =============================================================================
 
 -- -----------------------------------------------------------------------------
@@ -14,12 +15,26 @@ create table public.task_attempts (
   attempt_number smallint not null,
   performed_by uuid not null references public.profiles (id) on delete restrict,
   started_at timestamptz not null default now(),
+  started_at_device timestamptz,
   submitted_at timestamptz,
   note text,
   client_mutation_id uuid,
   submit_client_mutation_id uuid,
+  abandoned_at timestamptz,
+  abandoned_reason text,
   constraint task_attempts_attempt_number_positive check (attempt_number >= 1),
   constraint task_attempts_submitted_after_start check (submitted_at is null or submitted_at >= started_at),
+  -- Início pelo aparelho (fila offline): nunca depois da chegada ao servidor
+  constraint task_attempts_device_start_not_after_server check (
+    started_at_device is null or started_at_device <= started_at
+  ),
+  -- Encerrada sem envio (passagem da tarefa para outra pessoa): nunca enviada, com motivo
+  constraint task_attempts_closed_once check (submitted_at is null or abandoned_at is null),
+  constraint task_attempts_abandoned_after_start check (abandoned_at is null or abandoned_at >= started_at),
+  constraint task_attempts_abandoned_reason check (
+    (abandoned_at is null) = (abandoned_reason is null)
+    and (abandoned_reason is null or abandoned_reason in ('reassigned', 'access_lost'))
+  ),
   constraint task_attempts_note_length check (note is null or char_length(note) <= 2000),
   constraint task_attempts_task_attempt_number_key unique (task_id, attempt_number),
   constraint task_attempts_client_mutation_id_key unique (client_mutation_id),
@@ -33,17 +48,25 @@ create table public.task_attempts (
 alter table public.task_attempts enable row level security;
 
 comment on table public.task_attempts is
-  'Cada execução de uma tarefa. Nova tentativa após reprovação; todas ficam no histórico. Imutável depois de enviada.';
+  'Cada execução de uma tarefa. Nova tentativa após reprovação ou depois que a tarefa passou para outra pessoa; todas ficam no histórico. Imutável depois de enviada ou encerrada sem envio.';
 comment on column public.task_attempts.store_id is 'Loja da tarefa (cópia para as policies de RLS).';
 comment on column public.task_attempts.attempt_number is 'Número da tentativa na tarefa (1, 2, 3...).';
 comment on column public.task_attempts.performed_by is 'Quem executou (quem iniciou a tentativa).';
-comment on column public.task_attempts.started_at is 'Início, pelo horário do servidor.';
-comment on column public.task_attempts.submitted_at is 'Envio, pelo horário do servidor. Nulo = tentativa aberta.';
+comment on column public.task_attempts.started_at is
+  'Início, pelo horário do servidor (quando o pedido chegou; na fila offline, a hora da sincronização). Vale para tudo, exceto a conferência da foto anterior ao início.';
+comment on column public.task_attempts.started_at_device is
+  'Início pelo relógio do aparelho (fila offline, D72), limitado pelo servidor: nunca antes da janela (ou da criação da tarefa) nem do fim da tentativa anterior, e nunca depois de started_at. Usado só para conferir se a foto com EXIF é anterior ao início (photo_before_start). Nulo = iniciada online.';
+comment on column public.task_attempts.submitted_at is
+  'Envio, pelo horário do servidor. Nulo com abandoned_at nulo = tentativa aberta.';
 comment on column public.task_attempts.note is 'Observação do colaborador no envio.';
 comment on column public.task_attempts.client_mutation_id is
   'Id gerado no aparelho para iniciar a tentativa; reenvio offline com o mesmo id devolve a mesma tentativa.';
 comment on column public.task_attempts.submit_client_mutation_id is
   'Id gerado no aparelho para o envio; reenvio offline não duplica.';
+comment on column public.task_attempts.abandoned_at is
+  'Quando a tentativa aberta foi encerrada sem envio, pelo horário do servidor: a tarefa passou para outra pessoa (reatribuída, ou quem iniciou saiu da equipe/loja). A tentativa fica no histórico, não recebe mais respostas nem fotos e não conta como execução de ninguém.';
+comment on column public.task_attempts.abandoned_reason is
+  'Motivo do encerramento sem envio: reassigned (a tarefa não é mais de quem iniciou: reatribuída ou fora da equipe do setor) ou access_lost (quem iniciou não tem mais vínculo vigente de colaborador na loja).';
 
 -- -----------------------------------------------------------------------------
 -- attempt_item_answers
@@ -56,7 +79,10 @@ create table public.attempt_item_answers (
   checked boolean not null default false,
   note text,
   answered_at timestamptz not null default now(),
+  answered_at_device timestamptz,
+  client_mutation_id uuid,
   constraint attempt_item_answers_attempt_item_key unique (attempt_id, task_item_id),
+  constraint attempt_item_answers_client_mutation_id_key unique (client_mutation_id),
   constraint attempt_item_answers_note_length check (note is null or char_length(note) <= 1000),
   -- Tentativa e item da MESMA tarefa (nunca item de outra tarefa ou organização)
   constraint attempt_item_answers_attempt_task_fkey foreign key (attempt_id, task_id)
@@ -75,7 +101,11 @@ comment on column public.attempt_item_answers.checked is
   'Verdadeiro = item feito (conforme). Falso com observação = item não conforme (respondido); falso sem observação = ainda não respondido.';
 comment on column public.attempt_item_answers.note is
   'Observação do item. Obrigatória para responder "não conforme" (checked falso).';
-comment on column public.attempt_item_answers.answered_at is 'Última resposta, pelo horário do servidor.';
+comment on column public.attempt_item_answers.answered_at is 'Última resposta gravada, pelo horário do servidor.';
+comment on column public.attempt_item_answers.answered_at_device is
+  'Quando a pessoa respondeu, pelo relógio do aparelho (nunca depois do horário do servidor). Um reenvio offline mais antigo que a resposta gravada é ignorado (não desfaz uma resposta mais nova).';
+comment on column public.attempt_item_answers.client_mutation_id is
+  'Id gerado no aparelho para a última resposta gravada; reenvio com o mesmo id não muda nada.';
 
 -- -----------------------------------------------------------------------------
 -- evidences
@@ -141,7 +171,7 @@ comment on column public.evidences.sha256 is 'Hash SHA-256 (hex minúsculo) do a
 comment on column public.evidences.phash is 'Hash perceptual de 64 bits. Distância de Hamming <= 10 de outra foto recente = suspeita "similar".';
 comment on column public.evidences.size_bytes is 'Tamanho do arquivo em bytes.';
 comment on column public.evidences.suspicion is
-  'Sinais para o gerente avaliar (não bloqueiam): no_exif (sem EXIF ou sem horário de captura), clock_skew (horário do aparelho difere > 10 min do servidor), similar (parecida com outra foto). Foto com EXIF cujo horário de captura é anterior ao início da tentativa (com 10 min de tolerância) é recusada (photo_before_start).';
+  'Sinais para o gerente avaliar (não bloqueiam): no_exif (sem EXIF ou sem horário de captura), clock_skew (horário de captura difere > 10 min do recebimento no servidor: o PDF pede mostrar as duas datas; numa sincronização offline é esperado), similar (parecida com outra foto). Foto com EXIF cujo horário de captura é anterior ao início da tentativa (o do aparelho, quando veio da fila offline; 10 min de tolerância) é recusada (photo_before_start).';
 comment on column public.evidences.similar_to_id is 'Foto parecida mais próxima, quando há suspeita "similar".';
 comment on column public.evidences.purged_at is 'Quando o arquivo foi removido do storage pela retenção. O registro fica.';
 comment on column public.evidences.client_mutation_id is 'Id gerado no aparelho; reenvio offline com o mesmo id devolve a mesma evidência.';

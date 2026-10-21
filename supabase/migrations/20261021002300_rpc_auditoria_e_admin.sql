@@ -2,11 +2,17 @@
 -- Funções RPC de auditoria e administração.
 --   log_event          : registra exportações no audit_log (gerente ou
 --                        proprietária; detalhes com chaves conhecidas, valores
---                        simples e no máximo 2 KB: o audit_log é append-only e
+--                        simples e no máximo 2 KB; no máximo 10 por minuto e
+--                        200 por dia por pessoa: o audit_log é append-only e
 --                        não pode virar depósito)
---   log_admin_login    : registra o login de admin. SÓ a chave secreta chama
---                        (o servidor, logo depois do login): o navegador não
---                        consegue gravar um login inventado
+--   custom_access_token_hook (private): hook do Auth (Custom Access Token). Grava
+--                        'admin_login' para TODO login de admin, inclusive direto
+--                        na API pública do Auth (D79): a regra fica no Auth, não
+--                        na tela do app (D64). Só o papel do Auth executa.
+--   log_admin_login    : complementa o login de admin com ip e user_agent de
+--                        fonte confiável ('admin_login_context'). SÓ a chave
+--                        secreta chama (o servidor, logo depois do login): o
+--                        navegador não consegue gravar um contexto inventado
 --   admin_read_tasks   : leitura de tarefas pelo admin, sempre auditada
 --                        (admin não tem SELECT direto em tabelas operacionais)
 --   set_profile_status : admin ativa/desativa uma pessoa da organização
@@ -58,16 +64,99 @@ begin
       detail = format('Detalhes: objeto de até 2 KB com as chaves %s e valores simples.', array_to_string(v_allowed, ', '));
   end if;
 
+  -- Quantidade limitada por pessoa (D76): o audit_log é append-only, então o tamanho (2 KB)
+  -- não basta. Acima do limite a exportação é recusada (o Route Handler registra antes de
+  -- exportar, então nada sai sem registro). Trava por pessoa: chamadas simultâneas contam
+  -- uma de cada vez.
+  perform pg_advisory_xact_lock(hashtextextended('log_event:' || v_uid::text, 0));
+  if (select count(*) from public.audit_log l
+      where l.actor_id = v_uid and l.action = p_action
+        and l.occurred_at > now() - interval '1 minute') >= 10
+     or (select count(*) from public.audit_log l
+         where l.actor_id = v_uid and l.action = p_action
+           and l.occurred_at > now() - interval '1 day') >= 200 then
+    raise exception 'rate_limited' using errcode = 'P0001',
+      detail = 'Muitas exportações seguidas. Espere um minuto e tente de novo.';
+  end if;
+
   insert into public.audit_log (occurred_at, organization_id, actor_id, action, table_name, record_id, diff)
   values (now(), private.current_org_id(), v_uid, p_action, null, null, v_details);
 end;
 $$;
 
 comment on function public.log_event(text, jsonb) is
-  'Registra no audit_log uma exportação (só gerente ou proprietária; detalhes formato, escopo, filtros, periodo, linhas, com valores simples e até 2 KB: invalid_details). Autor = usuário logado. O login de admin é registrado só pelo servidor (log_admin_login).';
+  'Registra no audit_log uma exportação (só gerente ou proprietária; detalhes formato, escopo, filtros, periodo, linhas, com valores simples e até 2 KB: invalid_details; no máximo 10 por minuto e 200 por dia por pessoa: rate_limited). Autor = usuário logado. O login de admin é registrado pelo Auth (private.custom_access_token_hook).';
+
+-- -----------------------------------------------------------------------------
+-- custom_access_token_hook: login de admin registrado pelo próprio Auth (D79)
+--   O Auth (GoTrue) chama a função a cada token emitido, como supabase_auth_admin
+--   ([auth.hook.custom_access_token] no config.toml). Login (qualquer método que não
+--   seja a renovação do token) de quem tem vínculo vigente de admin, com perfil
+--   ativo, grava 'admin_login' com o método; no máximo um registro por admin por
+--   minuto. Devolve as claims sem mudança e NUNCA levanta erro (erro no hook
+--   bloquearia o login de todo mundo): falha vira aviso no log do Postgres.
+-- -----------------------------------------------------------------------------
+create function private.custom_access_token_hook(event jsonb)
+returns jsonb
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $$
+declare
+  v_method text := left(coalesce(event ->> 'authentication_method', 'desconhecido'), 40);
+  v_user_id uuid;
+  v_org uuid;
+begin
+  if v_method <> 'token_refresh' then
+    begin
+      v_user_id := (event ->> 'user_id')::uuid;
+
+      select m.organization_id into v_org
+      from public.memberships m
+      join public.profiles p on p.id = m.profile_id
+      where m.profile_id = v_user_id
+        and m.role = 'admin'
+        and m.store_id is null
+        and p.status = 'active'
+        and m.starts_at <= now()
+        and (m.ends_at is null or m.ends_at > now())
+      order by m.starts_at desc, m.id
+      limit 1;
+
+      if v_org is not null then
+        perform pg_advisory_xact_lock(hashtextextended('admin_login:' || v_user_id::text, 0));
+        if not exists (
+          select 1 from public.audit_log l
+          where l.actor_id = v_user_id
+            and l.action = 'admin_login'
+            and l.occurred_at > now() - interval '1 minute'
+        ) then
+          insert into public.audit_log (occurred_at, organization_id, actor_id, action, table_name, record_id, diff)
+          values (now(), v_org, v_user_id, 'admin_login', null, null, jsonb_build_object('metodo', v_method));
+        end if;
+      end if;
+    exception
+      when others then
+        raise warning 'custom_access_token_hook: login de admin não registrado (%: %)', sqlstate, sqlerrm;
+    end;
+  end if;
+
+  return jsonb_build_object('claims', event -> 'claims');
+end;
+$$;
+
+comment on function private.custom_access_token_hook(jsonb) is
+  'Hook Custom Access Token do Auth: todo login de admin (vínculo de rede vigente, perfil ativo) que não seja renovação de token grava admin_login no audit_log com o método (password, recovery...), no máximo um por admin por minuto, inclusive quando o login é feito direto na API do Auth. Devolve as claims sem mudança e nunca levanta erro. Só o papel do Auth (supabase_auth_admin) executa.';
+
+revoke all on function private.custom_access_token_hook(jsonb) from public, anon, authenticated, service_role;
+grant usage on schema private to supabase_auth_admin;
+grant execute on function private.custom_access_token_hook(jsonb) to supabase_auth_admin;
 
 -- -----------------------------------------------------------------------------
 -- log_admin_login (só service_role: o servidor chama logo depois do login)
+--   Contexto do login de admin (ip de fonte confiável, D68, e user_agent). O login
+--   em si é registrado pelo Auth (custom_access_token_hook, 'admin_login').
 -- -----------------------------------------------------------------------------
 create function public.log_admin_login(p_actor_id uuid, p_ip text default null, p_user_agent text default null)
 returns boolean
@@ -99,11 +188,11 @@ begin
   end if;
 
   -- No máximo um registro por admin por minuto (pedidos repetidos não enchem a trilha)
-  perform pg_advisory_xact_lock(hashtextextended('admin_login:' || p_actor_id::text, 0));
+  perform pg_advisory_xact_lock(hashtextextended('admin_login_context:' || p_actor_id::text, 0));
   if exists (
     select 1 from public.audit_log l
     where l.actor_id = p_actor_id
-      and l.action = 'admin_login'
+      and l.action = 'admin_login_context'
       and l.occurred_at > now() - interval '1 minute'
   ) then
     return false;
@@ -124,13 +213,13 @@ begin
   end if;
 
   insert into public.audit_log (occurred_at, organization_id, actor_id, action, table_name, record_id, diff)
-  values (now(), v_org, p_actor_id, 'admin_login', null, null, v_details);
+  values (now(), v_org, p_actor_id, 'admin_login_context', null, null, v_details);
   return true;
 end;
 $$;
 
 comment on function public.log_admin_login(uuid, text, text) is
-  'Registra no audit_log o login de um admin (vínculo de rede vigente, perfil ativo). Só a chave secreta executa: o servidor chama logo depois do login, com o id do usuário autenticado. ip (só endereço válido) e user_agent (até 300 caracteres); no máximo um registro por admin por minuto. Devolve verdadeiro se registrou.';
+  'Registra no audit_log o contexto do login de um admin (admin_login_context: ip, só endereço válido, e user_agent, até 300 caracteres), para quem tem vínculo de rede vigente e perfil ativo. Só a chave secreta executa: o servidor chama logo depois do login, com o id do usuário autenticado; no máximo um registro por admin por minuto. O login em si é gravado pelo Auth (private.custom_access_token_hook). Devolve verdadeiro se registrou.';
 
 -- -----------------------------------------------------------------------------
 -- admin_read_tasks

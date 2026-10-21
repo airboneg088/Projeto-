@@ -1,7 +1,10 @@
 -- =============================================================================
 -- Rotinas (modelos de tarefa), itens do checklist e agendamentos.
--- Editar uma rotina incrementa "version" e nunca altera tarefas já geradas
--- (as tarefas guardam um snapshot; ver migration de tarefas).
+-- Editar uma rotina já usada em alguma tarefa incrementa "version" e nunca
+-- altera tarefas já geradas (as tarefas guardam um snapshot; ver migration de
+-- tarefas). Enquanto nenhuma tarefa usou a rotina, ela está "em montagem" (a
+-- criação pela API leva vários pedidos: rotina, itens, imagem de referência)
+-- e continua na versão 1.
 -- =============================================================================
 
 -- -----------------------------------------------------------------------------
@@ -47,7 +50,7 @@ comment on column public.task_templates.requires_approval is
   'Exige aprovação do gerente. Falso = auto-aprovada no envio (registrada como revisão automática).';
 comment on column public.task_templates.weight is 'Peso/complexidade de 1 a 5, usado na nota ponderada.';
 comment on column public.task_templates.version is
-  'Versão do modelo. Sobe a cada edição do conteúdo ou dos itens; tarefas guardam a versão do snapshot.';
+  'Versão do modelo. Começa em 1 e sobe a cada edição do conteúdo ou dos itens feita depois que alguma tarefa usou a rotina (antes disso a rotina está em montagem); tarefas guardam a versão do snapshot.';
 
 create trigger task_templates_set_updated_at
   before update on public.task_templates
@@ -67,11 +70,14 @@ begin
   end if;
 
   new.version := old.version;
+  -- Só é edição (nova versão) depois que alguma tarefa usou a rotina: antes disso ela
+  -- está em montagem (criada em vários pedidos pela API) e fica na versão 1
   if (new.title, new.instructions, new.reference_image_path, new.default_priority,
       new.requires_photo, new.requires_note, new.requires_approval, new.weight)
      is distinct from
      (old.title, old.instructions, old.reference_image_path, old.default_priority,
       old.requires_photo, old.requires_note, old.requires_approval, old.weight)
+     and exists (select 1 from public.tasks tk where tk.template_id = old.id)
   then
     new.version := old.version + 1;
   end if;
@@ -80,7 +86,7 @@ end;
 $$;
 
 comment on function private.bump_template_version() is
-  'Gatilho BEFORE UPDATE em task_templates: incrementa version quando o conteúdo da rotina muda. A versão não pode ser gravada direto (só sobe de 1 em 1, aqui ou pelo gatilho dos itens).';
+  'Gatilho BEFORE UPDATE em task_templates: incrementa version quando o conteúdo de uma rotina já usada em tarefa muda (rotina ainda sem tarefas está em montagem: fica na versão 1). A versão não pode ser gravada direto (só sobe de 1 em 1, aqui ou pelo gatilho dos itens).';
 
 revoke all on function private.bump_template_version() from public, anon;
 
@@ -133,7 +139,8 @@ security definer
 set search_path = ''
 as $$
 begin
-  -- Itens gravados na mesma transação que criou a rotina não contam como edição
+  -- Montar o checklist de uma rotina que nenhuma tarefa usou ainda não é edição (a
+  -- criação pela API leva vários pedidos); depois do primeiro uso, cada mudança é
   update public.task_templates t
      set version = t.version + 1
    where t.id in (
@@ -141,13 +148,13 @@ begin
            union
            select (case when tg_op = 'INSERT' then null else old.template_id end)
          )
-     and t.created_at < now();
+     and exists (select 1 from public.tasks tk where tk.template_id = t.id);
   return null;
 end;
 $$;
 
 comment on function private.bump_template_version_from_items() is
-  'Gatilho AFTER em template_items: incluir, alterar ou remover item incrementa a versão da rotina (exceto na transação que criou a rotina).';
+  'Gatilho AFTER em template_items: incluir, alterar ou remover item incrementa a versão da rotina, se alguma tarefa já usou a rotina (antes disso ela está em montagem e fica na versão 1).';
 
 revoke all on function private.bump_template_version_from_items() from public, anon;
 
@@ -158,6 +165,79 @@ create trigger template_items_bump_template_version
 -- -----------------------------------------------------------------------------
 -- schedules
 -- -----------------------------------------------------------------------------
+
+-- Valores da regra de recorrência: cada chave presente é uma lista de valores do
+-- domínio dela (weekdays ISO 1..7, monthdays 1..31, dates AAAA-MM-DD válidas).
+-- IMMUTABLE: usada em CHECK (make_date não depende de DateStyle nem de fuso).
+create function private.is_valid_schedule_rule(p_rule jsonb)
+returns boolean
+language plpgsql
+immutable
+set search_path = ''
+as $$
+declare
+  v_value jsonb;
+  v_text text;
+begin
+  if p_rule is null or jsonb_typeof(p_rule) <> 'object' then
+    return false;
+  end if;
+
+  if p_rule ? 'weekdays' then
+    if jsonb_typeof(p_rule -> 'weekdays') <> 'array' then
+      return false;
+    end if;
+    for v_value in select jsonb_array_elements(p_rule -> 'weekdays') loop
+      if jsonb_typeof(v_value) <> 'number' or v_value::text !~ '^[1-7]$' then
+        return false;
+      end if;
+    end loop;
+  end if;
+
+  if p_rule ? 'monthdays' then
+    if jsonb_typeof(p_rule -> 'monthdays') <> 'array' then
+      return false;
+    end if;
+    for v_value in select jsonb_array_elements(p_rule -> 'monthdays') loop
+      if jsonb_typeof(v_value) <> 'number' or v_value::text !~ '^([1-9]|[12][0-9]|3[01])$' then
+        return false;
+      end if;
+    end loop;
+  end if;
+
+  if p_rule ? 'dates' then
+    if jsonb_typeof(p_rule -> 'dates') <> 'array' then
+      return false;
+    end if;
+    for v_value in select jsonb_array_elements(p_rule -> 'dates') loop
+      if jsonb_typeof(v_value) <> 'string' then
+        return false;
+      end if;
+      v_text := v_value #>> '{}';
+      if v_text !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' then
+        return false;
+      end if;
+      begin
+        perform make_date(substr(v_text, 1, 4)::integer, substr(v_text, 6, 2)::integer,
+                          substr(v_text, 9, 2)::integer);
+      exception
+        when others then
+          return false;
+      end;
+    end loop;
+  end if;
+
+  return true;
+end;
+$$;
+
+comment on function private.is_valid_schedule_rule(jsonb) is
+  'Verdadeiro se cada chave presente na regra do agendamento é uma lista com valores do domínio dela: weekdays inteiros 1..7 (ISO, 1 = segunda), monthdays inteiros 1..31, dates no formato AAAA-MM-DD e datas que existem. Usada no CHECK de schedules.rule.';
+
+revoke all on function private.is_valid_schedule_rule(jsonb) from public, anon;
+-- O CHECK roda com o papel de quem grava (gerente/proprietária pela API, chave secreta)
+grant execute on function private.is_valid_schedule_rule(jsonb) to authenticated, service_role;
+
 create table public.schedules (
   id uuid primary key default gen_random_uuid(),
   store_id uuid not null references public.stores (id) on delete restrict,
@@ -175,6 +255,9 @@ create table public.schedules (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint schedules_window_valid check (window_end > window_start),
+  -- A janela termina no mesmo dia local: '24:00' (válido no tipo time) jogaria o prazo
+  -- para o dia seguinte e a tarefa do dia D contaria no dia D+1 dos indicadores
+  constraint schedules_window_same_day check (window_end <= time '23:59:59'),
   constraint schedules_period_valid check (ends_on is null or ends_on >= starts_on),
   constraint schedules_rule_object check (jsonb_typeof(rule) = 'object'),
   -- Só as chaves da recorrência e tamanho limitado (a regra vai para o diff do audit_log)
@@ -192,6 +275,8 @@ create table public.schedules (
       false
     )
   ),
+  -- Valores dentro do domínio de cada chave (weekdays 1..7, monthdays 1..31, dates válidas)
+  constraint schedules_rule_values check (private.is_valid_schedule_rule(rule)),
   constraint schedules_sector_store_fkey foreign key (sector_id, store_id)
     references public.sectors (id, store_id) on delete restrict
 );
@@ -201,11 +286,12 @@ alter table public.schedules enable row level security;
 comment on table public.schedules is
   'Agendamento: gera uma tarefa por dia local da loja a partir de uma rotina, com janela de execução.';
 comment on column public.schedules.assignee_id is
-  'Responsável fixo (precisa ter vínculo não encerrado na loja do agendamento). Nulo = equipe do setor (qualquer colaborador vigente no setor).';
+  'Responsável fixo: colaborador ativo com vínculo não encerrado na loja do agendamento. Nulo = equipe do setor (qualquer colaborador vigente no setor).';
 comment on column public.schedules.rule is
   'Regra da recorrência: {} (diária), {"weekdays":[1..7]} (semanal, ISO 1 = segunda), {"monthdays":[1..31]} (mensal), {"dates":["AAAA-MM-DD"]} (datas específicas).';
 comment on column public.schedules.window_start is 'Início da janela, em hora local da loja.';
-comment on column public.schedules.window_end is 'Fim da janela em hora local da loja; vira o prazo (due_at) da tarefa.';
+comment on column public.schedules.window_end is
+  'Fim da janela em hora local da loja (até 23:59:59, depois do início); vira o prazo (due_at) da tarefa no mesmo dia local.';
 comment on column public.schedules.starts_on is 'Primeiro dia local em que o agendamento gera tarefas.';
 comment on column public.schedules.ends_on is 'Último dia local (inclusive). Nulo = sem fim.';
 

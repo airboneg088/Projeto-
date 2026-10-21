@@ -7,9 +7,9 @@
 --   memberships   : cada pessoa pertence a uma única organização
 --   sectors       : responsável com vínculo na loja (ou de rede na organização)
 --   task_templates: imagem de referência no caminho da própria rotina
---   schedules     : responsável com vínculo na loja
+--   schedules     : responsável colaborador ativo da loja
 --   tasks         : rotina da mesma organização (rede ou mesma loja), versão
---                   existente, responsável com vínculo na loja, imagem de
+--                   existente, responsável colaborador ativo da loja, imagem de
 --                   referência da própria organização/loja
 --   task_items    : linhagem (template_item_id) só da rotina da própria tarefa
 --   action_plans  : item de rotina da organização/loja e responsável com vínculo
@@ -67,6 +67,38 @@ comment on function private.is_member_of(uuid, uuid, uuid, boolean) is
   'Verdadeiro se a pessoa tem vínculo não encerrado (vigente ou futuro) na loja ou, se pedido, vínculo de rede na organização.';
 
 revoke all on function private.is_member_of(uuid, uuid, uuid, boolean) from public, anon;
+
+-- Pode ser responsável por tarefa/agendamento da loja? Quem executa é o colaborador
+-- (start_attempt exige vínculo vigente de staff): gerente, proprietária ou perfil inativo
+-- como responsável deixariam a tarefa sem ninguém que pudesse iniciá-la (D86).
+create function private.can_be_assignee(
+  p_profile_id uuid,
+  p_organization_id uuid,
+  p_store_id uuid
+)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select p_profile_id is not null and exists (
+    select 1
+    from public.memberships m
+    join public.profiles p on p.id = m.profile_id
+    where m.profile_id = p_profile_id
+      and m.organization_id = p_organization_id
+      and m.store_id = p_store_id
+      and m.role = 'staff'
+      and p.status = 'active'
+      and (m.ends_at is null or m.ends_at > now())
+  )
+$$;
+
+comment on function private.can_be_assignee(uuid, uuid, uuid) is
+  'Verdadeiro se a pessoa pode ser responsável por tarefa ou agendamento da loja: vínculo de colaborador não encerrado (vigente ou futuro) na loja e perfil ativo.';
+
+revoke all on function private.can_be_assignee(uuid, uuid, uuid) from public, anon;
 
 -- Caminho no bucket references: {org}/{loja ou rede}/{dono}/{uuid}.{jpg|png|webp}
 create function private.is_reference_path(
@@ -323,21 +355,21 @@ begin
      and (tg_op = 'INSERT'
           or new.assignee_id is distinct from old.assignee_id
           or new.store_id is distinct from old.store_id)
-     and not private.is_member_of(
+     and not private.can_be_assignee(
        new.assignee_id,
        (select s.organization_id from public.stores s where s.id = new.store_id),
        new.store_id
      ) then
     raise exception 'invalid_assignee'
       using errcode = '23514',
-            detail = 'O responsável precisa ter vínculo na loja do agendamento.';
+            detail = 'O responsável precisa ser colaborador ativo da loja do agendamento.';
   end if;
   return new;
 end;
 $$;
 
 comment on function private.validate_schedule_assignee() is
-  'Gatilho BEFORE INSERT/UPDATE em schedules: pela API só gerente da loja ou proprietária passam (os demais recebem o erro da RLS antes de qualquer consulta); responsável fixo com vínculo não encerrado na loja.';
+  'Gatilho BEFORE INSERT/UPDATE em schedules: pela API só gerente da loja ou proprietária passam (os demais recebem o erro da RLS antes de qualquer consulta); responsável fixo precisa ser colaborador ativo com vínculo não encerrado na loja (private.can_be_assignee).';
 
 revoke all on function private.validate_schedule_assignee() from public, anon;
 
@@ -406,10 +438,10 @@ begin
 
   if new.assignee_id is not null
      and (tg_op = 'INSERT' or v_scope_changed or new.assignee_id is distinct from old.assignee_id)
-     and not private.is_member_of(new.assignee_id, new.organization_id, new.store_id) then
+     and not private.can_be_assignee(new.assignee_id, new.organization_id, new.store_id) then
     raise exception 'invalid_assignee'
       using errcode = '23514',
-            detail = 'O responsável precisa ter vínculo na loja da tarefa.';
+            detail = 'O responsável precisa ser colaborador ativo da loja da tarefa.';
   end if;
 
   if new.reference_image_path is not null
@@ -428,7 +460,7 @@ end;
 $$;
 
 comment on function private.validate_task_references() is
-  'Gatilho BEFORE INSERT/UPDATE em tasks: pela API só quem pode gravar na loja passa (os demais recebem o erro da RLS antes de qualquer consulta); rotina da mesma organização (rede ou mesma loja); tarefa nova a partir de rotina usa a versão atual e as mesmas exigências e peso (invalid_template_version, invalid_snapshot); responsável com vínculo na loja; imagem de referência da própria organização/loja.';
+  'Gatilho BEFORE INSERT/UPDATE em tasks: pela API só quem pode gravar na loja passa (os demais recebem o erro da RLS antes de qualquer consulta); rotina da mesma organização (rede ou mesma loja); tarefa nova a partir de rotina usa a versão atual e as mesmas exigências e peso (invalid_template_version, invalid_snapshot); responsável colaborador ativo com vínculo não encerrado na loja (private.can_be_assignee); imagem de referência da própria organização/loja.';
 
 revoke all on function private.validate_task_references() from public, anon;
 
@@ -469,18 +501,20 @@ begin
             detail = 'O item de origem precisa ser da rotina da própria tarefa.';
   end if;
 
-  -- Item com linhagem copia o item da rotina: crítico, foto e peso não são escolhidos à mão
+  -- Item com linhagem copia o item da rotina: texto, crítico, foto e peso não são
+  -- escolhidos nem reescritos à mão (D48, D75). Outro checklist = editar a rotina (auditado,
+  -- sobe a versão) ou criar tarefa avulsa.
   if new.template_item_id is not null
      and (tg_op = 'INSERT'
           or new.template_item_id is distinct from old.template_item_id
-          or (new.is_critical, new.requires_photo, new.weight)
-             is distinct from (old.is_critical, old.requires_photo, old.weight)) then
+          or (new.text, new.is_critical, new.requires_photo, new.weight)
+             is distinct from (old.text, old.is_critical, old.requires_photo, old.weight)) then
     select * into v_item from public.template_items ti where ti.id = new.template_item_id;
-    if (new.is_critical, new.requires_photo, new.weight)
-       is distinct from (v_item.is_critical, v_item.requires_photo, v_item.weight) then
+    if (new.text, new.is_critical, new.requires_photo, new.weight)
+       is distinct from (v_item.text, v_item.is_critical, v_item.requires_photo, v_item.weight) then
       raise exception 'invalid_snapshot'
         using errcode = '23514',
-              detail = 'Item criado a partir de item de rotina usa o mesmo crítico, foto e peso do item da rotina.';
+              detail = 'Item criado a partir de item de rotina usa o mesmo texto, crítico, foto e peso do item da rotina.';
     end if;
   end if;
 
@@ -489,12 +523,12 @@ end;
 $$;
 
 comment on function private.validate_task_item_lineage() is
-  'Gatilho BEFORE INSERT/UPDATE em task_items: pela API só quem pode alterar a tarefa pendente passa (os demais recebem o erro da RLS antes de qualquer consulta); template_item_id precisa ser item da rotina da tarefa e o item copia crítico, foto e peso do item da rotina (invalid_snapshot).';
+  'Gatilho BEFORE INSERT/UPDATE em task_items: pela API só quem pode alterar a tarefa pendente passa (os demais recebem o erro da RLS antes de qualquer consulta); template_item_id precisa ser item da rotina da tarefa e o item copia texto, crítico, foto e peso do item da rotina (invalid_snapshot).';
 
 revoke all on function private.validate_task_item_lineage() from public, anon;
 
 create trigger task_items_validate_lineage
-  before insert or update of task_id, template_item_id, is_critical, requires_photo, weight on public.task_items
+  before insert or update of task_id, template_item_id, text, is_critical, requires_photo, weight on public.task_items
   for each row execute function private.validate_task_item_lineage();
 
 -- -----------------------------------------------------------------------------

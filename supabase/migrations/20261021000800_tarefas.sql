@@ -78,7 +78,7 @@ comment on column public.tasks.requires_note is 'Snapshot: exige observação no
 comment on column public.tasks.requires_approval is 'Snapshot: exige aprovação do gerente (falso = auto-aprovada no envio).';
 comment on column public.tasks.weight is 'Snapshot do peso (1 a 5) usado na nota ponderada.';
 comment on column public.tasks.assignee_id is
-  'Responsável (precisa ter vínculo não encerrado na loja da tarefa). Nulo = equipe do setor (qualquer colaborador vigente no setor pode iniciar).';
+  'Responsável: colaborador ativo com vínculo não encerrado na loja da tarefa (gerente ou proprietária não executam). Nulo = equipe do setor (qualquer colaborador vigente no setor pode iniciar).';
 comment on column public.tasks.assignee_at_due is
   'Quem era o responsável quando o prazo venceu (nulo = equipe do setor). Gravado pelo sistema na primeira reatribuição feita depois do prazo, para a falha não mudar de pessoa nos indicadores. Só vale quando assignee_at_due_recorded.';
 comment on column public.tasks.assignee_at_due_recorded is

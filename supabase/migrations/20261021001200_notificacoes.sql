@@ -17,7 +17,12 @@ create table public.notifications (
   created_at timestamptz not null default now(),
   constraint notifications_dedupe_key_key unique (dedupe_key),
   constraint notifications_dedupe_key_not_blank check (btrim(dedupe_key) <> ''),
-  constraint notifications_payload_object check (jsonb_typeof(payload) = 'object')
+  constraint notifications_payload_object check (jsonb_typeof(payload) = 'object'),
+  -- Notificação de tarefa leva a loja DA tarefa (D85): store_id é o que a RLS usa para
+  -- cortar quem saiu da loja, então não pode ficar nulo nem apontar para outra loja
+  constraint notifications_task_requires_store check (task_id is null or store_id is not null),
+  constraint notifications_task_store_fkey foreign key (task_id, store_id)
+    references public.tasks (id, store_id) on delete restrict
 );
 
 alter table public.notifications enable row level security;
@@ -26,5 +31,7 @@ comment on table public.notifications is 'Notificação para uma pessoa, por can
 comment on column public.notifications.dedupe_key is
   'Chave única que impede duplicar a mesma notificação (ex.: overdue:{task_id}:{recipient_id}:{canal}).';
 comment on column public.notifications.payload is 'Dados para montar o texto (títulos, horários).';
+comment on column public.notifications.store_id is
+  'Loja da notificação (nula = da rede). A RLS só mostra a quem tem vínculo vigente nela; notificação de tarefa sempre leva a loja da tarefa (FK composta).';
 comment on column public.notifications.sent_at is 'Quando foi entregue no canal (nulo = ainda na fila).';
 comment on column public.notifications.read_at is 'Quando a pessoa marcou como lida (única coluna que ela pode alterar).';

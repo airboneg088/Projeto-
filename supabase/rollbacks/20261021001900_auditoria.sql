@@ -15,9 +15,11 @@ drop trigger stores_forbid_truncate on public.stores;
 drop trigger organizations_forbid_truncate on public.organizations;
 
 drop trigger data_requests_audit on public.data_requests;
+drop trigger task_attempts_audit_abandon on public.task_attempts;
 drop trigger evidences_audit_purge on public.evidences;
 drop trigger tasks_audit_edit on public.tasks;
 drop trigger tasks_audit_cancel on public.tasks;
+drop trigger task_items_audit on public.task_items;
 drop trigger tasks_audit_insert on public.tasks;
 drop trigger schedules_audit on public.schedules;
 drop trigger template_items_audit on public.template_items;

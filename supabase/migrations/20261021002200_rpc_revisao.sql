@@ -90,8 +90,10 @@ begin
     end if;
   end if;
 
-  insert into public.reviews (attempt_id, task_id, reviewer_id, decision, reason, is_auto)
-  values (v_attempt.id, v_task.id, v_uid, p_decision, v_reason, false)
+  -- reviewed_at pelo relógio real: a revisão nunca fica antes do envio, mesmo quando a
+  -- transação começou antes de o envio ser gravado (D81)
+  insert into public.reviews (attempt_id, task_id, reviewer_id, decision, reason, is_auto, reviewed_at)
+  values (v_attempt.id, v_task.id, v_uid, p_decision, v_reason, false, clock_timestamp())
   returning id into v_review_id;
 
   insert into public.review_item_flags (review_id, task_id, task_item_id)

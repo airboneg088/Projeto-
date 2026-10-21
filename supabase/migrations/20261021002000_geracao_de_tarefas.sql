@@ -10,8 +10,9 @@
 --     p_priority default null) returns uuid
 -- Para tarefas de agendamento é idempotente: a mesma (schedule_id, scheduled_date)
 -- devolve sempre a mesma tarefa, sem duplicar.
--- Responsável sem vínculo na loja (transferido, desligado) não derruba a geração:
--- a tarefa vai para a equipe do setor (assignee nulo), com aviso no log.
+-- Responsável que não é mais colaborador ativo da loja (transferido, desligado,
+-- desativado) não derruba a geração: a tarefa vai para a equipe do setor
+-- (assignee nulo), com aviso no log.
 -- p_created_by é ignorado: o autor é sempre o usuário logado (nulo = sistema).
 -- =============================================================================
 
@@ -72,10 +73,11 @@ begin
       using errcode = '22023', detail = 'O agendamento não corresponde à loja e à rotina informadas.';
   end if;
 
-  -- Responsável fixo que saiu da loja: a tarefa do dia vai para a equipe do setor
+  -- Responsável fixo que não pode mais executar (saiu da loja, deixou de ser colaborador ou
+  -- foi desativado): a tarefa do dia vai para a equipe do setor (D42, D86)
   if v_assignee_id is not null
-     and not private.is_member_of(v_assignee_id, v_store.organization_id, p_store_id) then
-    raise warning 'instantiate_task: responsável % sem vínculo na loja %; tarefa gerada para a equipe do setor',
+     and not private.can_be_assignee(v_assignee_id, v_store.organization_id, p_store_id) then
+    raise warning 'instantiate_task: responsável % não é colaborador ativo da loja %; tarefa gerada para a equipe do setor',
       v_assignee_id, p_store_id;
     v_assignee_id := null;
   end if;
@@ -120,6 +122,6 @@ end;
 $$;
 
 comment on function private.instantiate_task(uuid, uuid, uuid, uuid, timestamptz, timestamptz, uuid, date, uuid, public.task_priority) is
-  'Cria uma tarefa com snapshot da versão atual da rotina (título, instruções, imagem, exigências, peso, versão, prioridade padrão) e copia os itens ativos para task_items. Com agendamento, ON CONFLICT (schedule_id, scheduled_date) devolve a tarefa existente. Responsável sem vínculo na loja vira equipe do setor (aviso no log). p_created_by é ignorado (autor = usuário logado ou sistema).';
+  'Cria uma tarefa com snapshot da versão atual da rotina (título, instruções, imagem, exigências, peso, versão, prioridade padrão) e copia os itens ativos para task_items. Com agendamento, ON CONFLICT (schedule_id, scheduled_date) devolve a tarefa existente. Responsável que não é colaborador ativo da loja vira equipe do setor (aviso no log). p_created_by é ignorado (autor = usuário logado ou sistema).';
 
 revoke all on function private.instantiate_task(uuid, uuid, uuid, uuid, timestamptz, timestamptz, uuid, date, uuid, public.task_priority) from public, anon, authenticated;

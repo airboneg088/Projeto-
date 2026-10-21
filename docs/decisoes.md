@@ -12,6 +12,7 @@ Decisões que não estavam no prompt. Reversíveis: decididas e registradas aqui
 | D52–D59 | 21/10/2026 | Decidido (reversível) — correções da 3ª rodada de revisão da Fase 1; riscos aceitos e adiados no fim deste arquivo |
 | D60–D71 | 21/10/2026 | Decidido (reversível) — correções da 3ª rodada de revisão da Fase 1 (app: login, sessão, Auth, cabeçalhos, segredos) |
 | D72–D91 | 21/10/2026 | Decidido (reversível) — correções da revisão final da Fase 1 (offline, indicadores, snapshot, auditoria, storage, LGPD, Auth); riscos novos no fim deste arquivo |
+| D92–D103 | 21/10/2026 | Decidido (reversível) — correções da 4ª rodada de revisão da Fase 1 (leitura do storage, reenvio offline, indicadores, corridas, linhagem, login de admin, check:secrets); riscos novos no fim deste arquivo |
 
 ---
 
@@ -205,7 +206,7 @@ Tarefa criada por usuário logado precisa de prazo no futuro (`deadline_locked`)
 ### D53 · "Atrasada" = venceu sem envio
 **Contexto:** `kpi_summary` contava como atrasada toda tarefa não aprovada com prazo vencido, então uma tarefa enviada a tempo saía de "Aguardando aprovação" e virava "Atrasada" só porque o gerente ainda não revisou. PRODUCT.md §7 define Atrasada como "Venceu sem envio".
 **Decisão:** vale o PRODUCT.md. Atrasada = não aprovada, prazo vencido e **não** aguardando a revisão de um envio feito até o prazo. Enviada até o prazo e ainda sem revisão continua "Aguardando aprovação" (e em "Pendentes"); enviada depois do prazo, nunca enviada ou reprovada sem novo envio até o prazo contam como atrasadas. `submitted` continua sem contar como concluída.
-**Por quê:** a demora da revisão é do gerente (medida em "Tempo envio → revisão"), não atraso de quem executou; e o painel passa a bater com o status exibido da tarefa.
+**Por quê:** a demora da revisão é do gerente (medida em "Tempo envio → revisão"), não atraso de quem executou; e o painel passa a bater com o status exibido da tarefa. Ajustada pela D95 (reprovação depois do prazo) e pela D94 (envio offline).
 
 ### D54 · Foto exigida pela tarefa = foto geral, além das dos itens
 **Contexto:** `submit_attempt` aceitava qualquer foto da tentativa para `tasks.requires_photo`, então a foto de um item cumpria também a "foto da tarefa" (ex.: Limpeza: a foto do piso valia como "foto do salão limpo").
@@ -220,7 +221,7 @@ Tarefa criada por usuário logado precisa de prazo no futuro (`deadline_locked`)
 ### D56 · Resposta de item idempotente e "a mais nova vence" pelo relógio do aparelho
 **Contexto:** `attempt_item_answers` não tinha `client_mutation_id` e `answer_item` gravava o que chegasse por último: um reenvio offline atrasado (fila reordenada) desfazia uma marcação mais nova.
 **Decisão:** `answer_item(p_attempt_id, p_task_item_id, p_checked, p_note, p_client_mutation_id, p_answered_at_device)` devolve `boolean`. O mesmo `client_mutation_id` não muda nada (devolve `true`); resposta com horário do aparelho anterior ao da resposta gravada é ignorada (devolve `false`; o app mostra a resposta do servidor). O horário do aparelho é gravado em `answered_at_device`, limitado ao horário do servidor (relógio adiantado não "congela" o item). Sem horário do aparelho (uso online), vale a ordem de chegada. O cliente offline (Fase 3) **deve** enviar os dois.
-**Por quê:** a ordem real das respostas só o aparelho conhece; guardar só o último `client_mutation_id` por item basta para o reenvio idêntico, e o horário resolve o reenvio de uma resposta antiga sem guardar o histórico de cada toque. Risco aceito abaixo (R3-01).
+**Por quê:** a ordem real das respostas só o aparelho conhece; guardar só o último `client_mutation_id` por item basta para o reenvio idêntico, e o horário resolve o reenvio de uma resposta antiga sem guardar o histórico de cada toque. Risco aceito abaixo (R3-01). Corrigida pela D93: guardar só o último id **não** bastava (o reenvio de um id já substituído voltava a valer).
 
 ### D57 · Versão da rotina só sobe depois do primeiro uso
 **Contexto:** a regra "itens gravados na mesma transação da criação não contam" não funciona pela API: rotina, itens e imagem de referência (cujo caminho leva o id da rotina) chegam em pedidos separados, e uma rotina nova com 3 itens nascia na versão 4.
@@ -316,7 +317,7 @@ Tarefa criada por usuário logado precisa de prazo no futuro (`deadline_locked`)
 ### D73 · "1ª tentativa" = 1º envio
 **Contexto:** a tentativa encerrada sem envio (D52) continua numerada; a tarefa aprovada no único envio de quem a recebeu contava como "não aprovada na 1ª tentativa" (R3-REGRAS-02).
 **Decisão:** em `kpi_summary`, aprovada na 1ª tentativa = a tentativa aprovada é a primeira **enviada** da tarefa (nenhuma tentativa enviada com número menor). `attempt_number` continua sendo a numeração do histórico.
-**Por quê:** PRODUCT.md §7 define tentativa como "cada execução enviada"; a passagem da tarefa não pode baixar a qualidade da loja nem de quem socorreu.
+**Por quê:** PRODUCT.md §7 define tentativa como "cada execução enviada"; a passagem da tarefa não pode baixar a qualidade da loja nem de quem socorreu. Por pessoa, ver D96.
 
 ### D74 · Falha da tarefa vencida fica com quem a tinha no prazo
 **Contexto:** com a D52, reatribuir depois do prazo encerrava a tentativa de quem executava no prazo, e `private.task_person` ignorava tentativa encerrada: a atrasada ia para "Sem responsável" (equipe) ou para quem a recebeu já vencida e a iniciou (R3-REGRAS-08, reabrindo o R2-REGRAS-04).
@@ -345,8 +346,8 @@ Tarefa criada por usuário logado precisa de prazo no futuro (`deadline_locked`)
 
 ### D79 · Login de admin registrado pelo Auth
 **Contexto:** o `admin_login` só era gravado quando o login passava pela Server Action do app; um login direto na API pública do Auth (com a chave publicável) não deixava rastro (R3-APP-05). A D64 já dizia que regra só no app não é controle.
-**Decisão:** hook Custom Access Token do Auth (`[auth.hook.custom_access_token]`, `pg-functions://postgres/private/custom_access_token_hook`; na stack local pelo auth-env.mjs): todo token emitido que não seja renovação, para quem tem vínculo de admin vigente com perfil ativo, grava `admin_login` com o método (`password`, `recovery`...), no máximo um por admin por minuto. A função não muda as claims, nunca levanta erro (falha vira aviso no log) e só `supabase_auth_admin` a executa. `log_admin_login` (servidor) passa a gravar só o contexto: `admin_login_context` com ip confiável (D68) e user_agent.
-**Por quê:** o registro sai da camada que todo login atravessa. No hospedado, o hook é ligado pelo `supabase config push` (ou no painel: Authentication → Hooks).
+**Decisão:** hook Custom Access Token do Auth (`[auth.hook.custom_access_token]`, `pg-functions://postgres/private/custom_access_token_hook`; na stack local pelo auth-env.mjs): todo token emitido que não seja renovação, para quem tem vínculo de admin vigente com perfil ativo, grava `admin_login` com o método (`password`, `recovery`...), no máximo um por admin por minuto (por sessão desde a D102). A função não muda as claims, nunca levanta erro (falha vira aviso no log) e só `supabase_auth_admin` a executa. `log_admin_login` (servidor) passa a gravar só o contexto: `admin_login_context` com ip confiável (D68) e user_agent.
+**Por quê:** o registro sai da camada que todo login atravessa. No hospedado, o hook é ligado pelo `supabase config push` (ou no painel: Authentication → Hooks), sempre **depois** do `supabase db push` que cria a função (D102).
 
 ### D80 · E-mail de recuperação em pt-BR e erro de "outro navegador"
 **Contexto:** o e-mail de recuperação era o padrão do Auth, em inglês e com um código de 6 dígitos que o app não aceita; o link aberto em outro navegador dizia "O link expirou ou já foi usado" (R3-CRITERIOS-01). O `config.toml` levava `max_frequency = "1s"` para o hospedado (R3-APP-06).
@@ -381,7 +382,7 @@ Tarefa criada por usuário logado precisa de prazo no futuro (`deadline_locked`)
 ### D86 · Responsável = colaborador ativo da loja
 **Contexto:** tarefa e agendamento aceitavam como responsável qualquer pessoa com vínculo na loja (gerente, proprietária) ou perfil inativo; ninguém conseguia iniciar e a tarefa vencia (R3-REGRAS-05).
 **Decisão:** `private.can_be_assignee`: vínculo de colaborador não encerrado na loja e perfil ativo (`invalid_assignee`, 23514), em tarefas e agendamentos; `private.instantiate_task` manda para a equipe do setor quando o responsável fixo não atende mais (D42).
-**Por quê:** só o colaborador executa (`start_attempt`); com responsável preenchido, a equipe do setor não pode iniciar.
+**Por quê:** só o colaborador executa (`start_attempt`); com responsável preenchido, a equipe do setor não pode iniciar. Vínculo que só começa depois do prazo: D100.
 
 ### D87 · Fuso da loja só IANA
 **Contexto:** `stores.timezone` aceitava `UTC-3`, `GMT-3`, `-03` e `Etc/GMT-3`, que o Postgres entende com o sinal invertido (UTC+3): todo "dia local da loja" andava 6 h (R3-REGRAS-04).
@@ -408,6 +409,70 @@ Tarefa criada por usuário logado precisa de prazo no futuro (`deadline_locked`)
 **Decisão:** os três formulários validam no `onSubmit` com os mesmos esquemas (`validateFormFields`, `useClientValidation`) e não enviam quando a entrada é inválida; o servidor valida de novo sempre. zod roda sem o modo JIT (`z.config({ jitless: true })`), porque o JIT testa `new Function` e a CSP não tem `unsafe-eval`.
 **Por quê:** erro na hora, sem ida ao servidor, com o mesmo texto; vale também para os formulários offline da Fase 3.
 
+---
+
+## Correções da 4ª rodada de revisão da Fase 1 (21/10/2026)
+
+### D92 · Leitura do storage confere o caminho inteiro
+**Contexto:** `can_read_evidence`/`can_read_reference` conferiam só o começo do caminho (evidência: 4 segmentos; referência: 2). O servidor assina com a chave secreta o **mesmo texto** conferido, e o storage-js monta `/object/sign/<bucket>/<caminho>` por concatenação; o `fetch` (WHATWG URL) troca `\` por `/` e resolve `..`. `{org A}/{loja P}/{tarefa}/{tentativa}/..\..\..\..\{caminho da org B}` passava como "foto da própria tentativa" e a URL assinada era de outra loja, organização ou bucket (R4-ISOLAMENTO-01, R4-INTEGRIDADE-02).
+**Decisão:** as duas funções exigem o formato exato do upload em todos os segmentos (`{uuid}/{uuid}/{uuid}/{uuid}/{uuid}.jpg`; `{uuid}/{rede|uuid}/{uuid}/{uuid}.{jpg,png,webp}`). No app, `createSignedReadUrl` recusa (devolve `null`, sem conferir nem assinar) caminho fora desse formato (`isCanonicalStoragePath`), com teste para `..\`, `../`, `%2e%2e`, `%5c`, `?`/`#`.
+**Por quê:** o texto conferido e o texto assinado precisam ser o mesmo objeto; com só minúsculas, dígitos, `-`, `/` e `.` na posição da extensão, não há o que normalizar. Na Fase 3/4, a tela deve pedir a URL pelo **id** da evidência/rotina e ler o caminho do banco pela RLS.
+
+### D93 · Reenvio de resposta já substituída não volta a valer
+**Contexto:** `answer_item` só lembrava o `client_mutation_id` da resposta atual. O reenvio de um pedido antigo (resposta HTTP perdida, repetido pela fila ou pelo fetch) depois de uma resposta mais nova caía na comparação de horários e, sem horário do aparelho (online) ou com relógio adiantado (limitado a agora), voltava a valer: o item "não conforme" virava "feito" e a tarefa sem exigência de aprovação era auto-aprovada (R4-REGRAS-01).
+**Decisão:** `attempt_item_answers.applied_mutation_ids` guarda os ids aplicados ao item (os 200 mais recentes; índice GIN). Um id já aplicado nunca muda nada: devolve `true` se ainda é a resposta gravada e `false` se outra mais nova a substituiu (também depois do envio, sem `attempt_closed`); o mesmo id em outro item ou tentativa continua `forbidden`. O cliente (Fase 3) manda o horário do aparelho em **toda** resposta, online inclusive: assim a ordem entre respostas do mesmo aparelho é a do relógio dele, também com relógio atrasado.
+**Por quê:** idempotência não pode depender de qual resposta está gravada agora. O horário continua limitado a agora (D56: relógio adiantado não "congela" o item); com relógio adiantado, duas respostas **diferentes** que chegam fora de ordem ficam na ordem de chegada (risco R4-01, abaixo).
+
+### D94 · Envio offline pelo relógio do aparelho nos prazos dos indicadores
+**Contexto:** `submit_attempt` não recebia o horário do aparelho: o trabalho feito sem internet antes do prazo virava "Atrasada", saía de "% aprovadas na janela" e, em tarefa de equipe aberta offline antes do prazo, ia para "Sem responsável" (R4-REGRAS-02). Isso pesa contra as lojas e setores com internet ruim, justamente na comparação que os indicadores prometem justa.
+**Decisão:** `submit_attempt(p_attempt_id, p_note, p_client_mutation_id, p_submitted_at_device default null)` grava `task_attempts.submitted_at_device`, limitado pelo servidor: nunca antes do início da tentativa (o do aparelho, D72) nem da última resposta, nunca depois de agora (CHECK `task_attempts_device_submit_bounds`). Nos indicadores, o envio vale por `coalesce(submitted_at_device, submitted_at)` em "Atrasadas", "% aprovadas na janela" e "atribuição → envio"; "envio → revisão" continua pela chegada ao servidor (o gerente só vê o envio quando ele chega). `private.task_person` usa `coalesce(started_at_device, started_at)` para "estava com a tarefa no prazo". A tela da Fase 3/4 mostra as duas datas quando divergem mais de 10 min (como o `clock_skew` da foto).
+**Por quê:** "o horário do servidor é a verdade" continua valendo para o registro (`submitted_at`, `received_at_server`); o prazo do indicador mede quando a pessoa fez, e os limites impedem usar o aparelho para enviar antes de começar ou de responder. O que sobra (relógio atrasado de propósito) está no risco R4-02.
+
+### D95 · Reprovada depois do prazo fica em "Pendentes"
+**Contexto:** "reprovada sem novo envio até o prazo" contava como atrasada mesmo quando o gerente reprovou um envio feito a tempo **depois** do prazo: a mesma execução era atrasada ou não conforme a hora da revisão, e não revisar deixava a loja com menos atrasadas (R4-REGRAS-05).
+**Decisão:** Atrasada = não aprovada, prazo vencido e **sem** envio feito até o prazo que ainda espera revisão ou que só foi revisado depois do prazo. Reprovada antes do prazo e sem novo envio até ele continua atrasada; reprovada depois do prazo fica em "Pendentes" (Correção solicitada) e aparece em "Devolvidas".
+**Por quê:** é a razão da D53: quem executou não teve como corrigir a tempo; e o painel passa a bater com o status exibido.
+
+### D96 · Indicadores por pessoa contam as tentativas de cada pessoa
+**Contexto:** com filtro de pessoa, `kpi_summary` selecionava as tarefas pela pessoa da tarefa e calculava métricas da tarefa: quem socorria uma tarefa reprovada (reatribuída depois da reprovação) levava a reprovação do executor anterior em "1ª tentativa", "Devolvidas" e "envio → revisão", e o executor ficava limpo (R4-REGRAS-03).
+**Decisão:** por pessoa, "Devolvidas" e "envio → revisão" contam as revisões das tentativas que a pessoa executou (em qualquer tarefa do período e dos filtros de loja/setor); "% aprovadas na 1ª tentativa" conta a tarefa da pessoa aprovada no **1º envio dela** na tarefa. Sem filtro de pessoa, nada muda. As devolvidas por pessoa somam as da loja.
+**Por quê:** é a regra que a D46 já usa para item crítico ("conta para quem executou a tentativa reprovada") e a da D73 ("a passagem não pode baixar a qualidade de quem socorreu").
+
+### D97 · Início não corre com a mudança de vínculo ou de perfil
+**Contexto:** o gatilho da passagem (D82) encerra as tentativas que **já existem** quando o vínculo ou o perfil muda. `start_attempt` no meio de uma mudança ainda não commitada (fim imediato, troca de setor, desativação) criava a tentativa depois de o gatilho procurar: ela ficava aberta e contava para quem saiu (R4-INTEGRIDADE-01, R4-REGRAS-07).
+**Decisão:** `start_attempt` trava `FOR SHARE` os vínculos de colaborador da pessoa na loja e o perfil antes da tarefa (vínculo → perfil → tarefa, a ordem de uma transferência e do gatilho). O início espera o commit da mudança e recebe `forbidden`; se vier antes, a mudança espera e o gatilho encerra a tentativa. Cenário em `scripts/db/concorrencia/inicio-durante-mudanca-de-vinculo.sql`.
+**Por quê:** só o início cria tentativa nova; as outras RPCs já travam a tarefa e a tentativa, e o gatilho espera por elas.
+
+### D98 · Início offline depois da passagem feita no próprio início
+**Contexto:** quando o próprio `start_attempt` encerrava a tentativa velha de outra pessoa (vínculo com fim agendado, R3-02), esse encerramento (hora da sincronização) virava o "fim da tentativa anterior" e cortava o início do aparelho: a foto tirada offline caía em `photo_before_start` (R4-INTEGRIDADE-05).
+**Decisão:** para a tentativa encerrada nesta mesma chamada vale o **início** dela como limite inferior, não o encerramento.
+**Por quê:** o encerramento feito agora não diz nada sobre quando a nova pessoa abriu a tarefa.
+
+### D99 · Versão da rotina não corre com a geração da 1ª tarefa
+**Contexto:** desde a D57 o gatilho dos itens só sobe a versão se já existe tarefa da rotina, decidido sem travar a rotina; a geração trava a rotina `FOR SHARE` e copia os itens com o próprio snapshot. Incluir um item enquanto a 1ª tarefa era gerada deixava a tarefa e a rotina na versão 1 com checklists diferentes (R4-INTEGRIDADE-03).
+**Decisão:** `private.bump_template_version_from_items` trava a rotina (`FOR NO KEY UPDATE`) antes de decidir: ou a geração espera e copia o item novo, ou o gatilho vê a tarefa e sobe a versão. Cenário em `scripts/db/concorrencia/versao-da-rotina-em-corrida.sql`.
+**Por quê:** a versão existe para identificar o snapshot (D48, D57).
+
+### D100 · Responsável de tarefa com vínculo que começa antes do prazo
+**Contexto:** a D86 aceitava como responsável quem só tem vínculo futuro: a tarefa de hoje ficava com quem não consegue iniciá-la, a equipe do setor também não (responsável preenchido) e a geração não mandava para a equipe (R4-REGRAS-06).
+**Decisão:** `private.can_be_assignee(..., p_due_at)`: para tarefa, o vínculo de colaborador começa antes do prazo (ou já começou, se o prazo passou); agendamento continua aceitando quem começa no futuro; `private.instantiate_task` confere com o prazo da tarefa gerada e manda para a equipe do setor (D42) quando o responsável fixo ainda não começou.
+**Por quê:** é o caso que a D86 quis fechar; planejar a tarefa da semana que vem para quem entra na semana que vem continua possível.
+
+### D101 · Linhagem dos itens fixa no snapshot
+**Contexto:** a regra da linhagem (D48, D75) comparava o item da tarefa com o item **atual** da rotina: depois de a rotina subir de versão, o gerente "alinhava" o item da tarefa da versão 1 aos valores da versão 2 (ex.: o item crítico deixava de ser crítico) e a tarefa continuava dizendo versão 1 (R4-REGRAS-09).
+**Decisão:** item que veio da rotina só muda de posição depois de criado (texto, crítico, foto, peso, linhagem e tarefa ficam: `invalid_snapshot`); item novo com linhagem só entra em tarefa da versão **atual** da rotina, com os valores do item da rotina.
+**Por quê:** as versões anteriores não são guardadas; o que a tarefa copiou é o snapshot.
+
+### D102 · Login de admin: um registro por sessão; hook ligado só com a função no banco
+**Contexto:** o hook gravava no máximo um `admin_login` por admin por minuto, sem a sessão: dois logins em aparelhos diferentes no mesmo minuto viravam uma linha (R4-REGRAS-10). E o rollback da migration remove a função do hook sem desligá-lo no Auth: todo login passa a responder 500 (o mesmo vale para ligar o hook antes da migration no deploy) (R4-INTEGRIDADE-04).
+**Decisão:** o hook grava um `admin_login` por **sessão** (`diff`: `metodo`, `sessao`, `aal`, das claims que o próprio Auth montou); sem sessão nas claims, um por minuto; contra inundação, no máximo 20 por admin por minuto. O contexto do app (`admin_login_context`, ip e user_agent) continua um por minuto (é complemento; o login em si fica por sessão). O rollback `20261021002300` e o `docs/dev-local.md` §6 dizem: desligar o hook (config.toml + `supabase config push`, ou Authentication → Hooks) **antes** do rollback e, no deploy, `supabase db push` **antes** do `supabase config push`.
+**Por quê:** o PDF pede "login de admin" no `audit_log`: cada login é um evento. O "nunca levanta erro" da D79 vale só dentro da função; a ordem de deploy fica escrita onde quem faz o deploy lê (o roteiro da Fase 8 repete).
+
+### D103 · check:secrets lê as importações pelo parser do TypeScript
+**Contexto:** o regex das regras 3 e 4 não reconhecia `import { x as $y }`, comentário dentro das chaves nem `` import(`...`) ``: uma página podia importar o `admin.ts` sem o script acusar (R4-APP-01).
+**Decisão:** `scripts/check-secrets.mjs` lista as importações pela árvore sintática do TypeScript (devDependency já existente): `import`/`export ... from`, `import()` e `require()` com texto fixo (aspas ou template sem substituição), `import x = require(...)`; `import type`/`export type` ficam de fora. `import()`/`require()` com argumento que não é texto fixo em `src/` é erro. Autoteste com as três formas do revisor e as demais.
+**Por quê:** o parser entende toda forma de importar; não há o que enumerar.
+
 ## Riscos aceitos e adiados
 
 | Id | Risco | Por que foi aceito ou adiado | Fase que trata |
@@ -433,3 +498,8 @@ Tarefa criada por usuário logado precisa de prazo no futuro (`deadline_locked`)
 | R3-REGRAS-07 (D13) | A nota ponderada, "% aprovadas na janela" e a adoção contam como 0 a tarefa que ainda está no prazo: no painel do dia, a loja com prazos mais tarde parece pior ao meio-dia. | É definição de indicador (D13); a escolha ("só o que já venceu" ou "até agora", e coluna "em aberto") depende do desenho do painel. Hoje a comparação é justa para períodos fechados. | Fase 5 (painel: período fechado por padrão ou nota só sobre tarefas decididas, com "em aberto" ao lado) |
 | R3-09 (D90) | O admin (suporte) só lê tarefas (`admin_read_tasks`); itens, tentativas, respostas, fotos, revisões, rotinas, agendamentos e planos não têm leitura auditada para ele. | Menos acesso é a direção segura; a leitura de suporte depende das telas de administração. | Fase 7 (funções `admin_read_*` auditadas, com URL assinada no servidor para fotos) |
 | R3-FUNCOES-01b (D76) | Fotos (`evidences`, permanentes) não têm cota por tentativa: o executor de uma tentativa aberta registra quantas quiser (cada uma exige arquivo no bucket e sha256 novo). | O tamanho já é limitado pelo bucket (5 MB) e cada foto precisa de upload real; a cota depende do desenho da tela de câmera. | Fase 3 (cota de fotos por item/tentativa na RPC) |
+| R4-01 (D93; R4-REGRAS-01) | Aparelho com relógio **adiantado**: os horários das respostas são limitados a agora, então duas respostas **diferentes** do mesmo item que chegam fora de ordem (a 1ª falhou de verdade e foi reenviada depois da 2ª) ficam na ordem de chegada. Reenvio do **mesmo** pedido não é afetado (D93). | Comparar o horário cru do aparelho "congelaria" o item quando o relógio é corrigido no meio da tentativa (a resposta nova pareceria mais antiga), o problema que a D56 evitou. | Fase 3 (fila entrega as mutações de cada tentativa em ordem e só manda a seguinte depois da resposta da anterior; aviso de relógio do aparelho divergente ao sincronizar, R3-04) |
+| R4-02 (D94; R4-REGRAS-02) | O envio offline vale pelo relógio do aparelho nos prazos dos indicadores: com o relógio **atrasado** (por erro ou de propósito), um envio feito depois do prazo pode contar como no prazo. O limite inferior é o início da tentativa e a última resposta, que vêm do mesmo relógio. | Sem o horário do aparelho, todo trabalho offline feito a tempo virava atrasado (injusto com lojas de internet ruim). O registro continua com a hora do servidor (`submitted_at`) e a divergência fica visível. | Fase 3/4 (a tela do gerente mostra as duas datas quando divergem mais de 10 min; o app compara o relógio do aparelho com o do servidor ao sincronizar) e Fase 5 (indicador de envios com divergência, se a proprietária pedir) |
+| R4-03 (R4-REGRAS-04) | Fila reordenada entre as respostas e o envio da **mesma** tentativa: um envio que chega antes da última resposta congela a resposta antiga (e pode auto-aprovar); a resposta que chega depois recebe `attempt_closed`. | O servidor não sabe o que o aparelho tinha ao tocar em "Enviar" sem um manifesto das respostas; a fila em ordem por tentativa evita o caso. | Fase 3 (fila manda o envio só depois de todas as mutações anteriores da tentativa confirmadas; se ainda acontecer, `submit_attempt` recebe o manifesto `{item: client_mutation_id}` e recusa com erro de "respostas pendentes") |
+| R4-04 (D52; R4-REGRAS-08) | Passagem e volta (A → B → A, ou setor trocado e destrocado): A precisa refazer as fotos da tentativa encerrada (o sha256 delas bloqueia `duplicate_photo` e as anteriores ao novo início caem em `photo_before_start`), e o reenvio do início com o `client_mutation_id` original devolve a tentativa encerrada (as mutações seguintes da fila recebem `attempt_closed`). | Reaproveitar fotos de outra tentativa mexe na regra de foto repetida (D26) e no histórico imutável; o caso nasce de um erro operacional e o histórico mostra o que aconteceu. | Fase 3 (fila trata `attempt_closed` depois de um início: pede o estado da tarefa e reinicia; avaliar `attempt_abandoned` específico no reenvio do início e reaproveitar as fotos da própria pessoa na mesma tarefa) |
+| R4-05 (D67; R4-APP-02) | "Esqueci minha senha" iguala o tempo das respostas com um piso fixo de 1.500 ms. Com SMTP real (Resend), o Auth envia o e-mail dentro do `/recover`: se a entrega passar do piso, só a conta existente demora mais e o tempo volta a revelar o cadastro pela tela do app. Não reproduzido (local: ~10 ms). | Depende da latência do SMTP hospedado, que ainda não existe; responder antes de o Auth terminar exige garantir que o cookie do `code_verifier` (PKCE) já foi gravado. | Fase 6 (com o Resend ligado, medir o p99 do `/recover` e ajustar o piso para p99 + margem, ou responder no piso e concluir o pedido em `after()` depois de gravar o cookie) |

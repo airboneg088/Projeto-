@@ -5,6 +5,9 @@
 -- atraso de quem executou); enviada depois do prazo, nunca enviada ou reprovada
 -- e não reenviada até o prazo vencer contam como atrasadas. submitted nunca
 -- conta como aprovada.
+-- R4-REGRAS-05 (D95): enviada a tempo e reprovada só DEPOIS do prazo fica em
+-- "Pendentes" (Correção solicitada): quem executou não teve como corrigir a
+-- tempo, e a mesma execução não pode virar atraso só porque o gerente revisou.
 -- =============================================================================
 begin;
 \ir helpers/auth.psql
@@ -58,6 +61,14 @@ values (tests.fx('s1_e:a1'), tests.fx('s1_e'), tests.fx('manager_p'), 'rejected'
 select tests.walk(tests.fx('s1_e'), 'rejected', 'in_progress');
 select tests.s1_attempt('s1_e', 2, '2026-05-10 11:55+00');
 select tests.walk(tests.fx('s1_e'), 'submitted');
+-- g: enviada a tempo e reprovada só depois do prazo -> Pendente (Correção solicitada)
+select tests.s1_task('s1_g');
+select tests.walk(tests.fx('s1_g'), 'in_progress');
+select tests.s1_attempt('s1_g', 1, '2026-05-10 11:30+00');
+select tests.walk(tests.fx('s1_g'), 'submitted');
+insert into public.reviews (attempt_id, task_id, reviewer_id, decision, reason, reviewed_at)
+values (tests.fx('s1_g:a1'), tests.fx('s1_g'), tests.fx('manager_p'), 'rejected', 'Foto escura', '2026-05-10 14:00+00');
+select tests.walk(tests.fx('s1_g'), 'rejected');
 -- f: aprovada
 select tests.s1_task('s1_f');
 select tests.walk(tests.fx('s1_f'), 'in_progress');
@@ -71,8 +82,8 @@ select tests.authenticate_as('owner_a');
 select results_eq(
   $$ select previstas, aprovadas, atrasadas, pendentes, aguardando_aprovacao
      from public.kpi_summary('2026-05-10', '2026-05-10', array[tests.fx('store_p')]) $$,
-  $$ values (6, 1, 3, 2, 2) $$,
-  'atrasadas = venceram sem envio (b, c, d); enviadas até o prazo seguem aguardando aprovação (a, e)'
+  $$ values (7, 1, 3, 3, 2) $$,
+  'atrasadas = venceram sem envio (b, c, d); enviadas até o prazo seguem aguardando aprovação (a, e); reprovada depois do prazo fica pendente (g)'
 );
 select is(
   (select status::text from public.tasks where id = tests.fx('s1_a')),

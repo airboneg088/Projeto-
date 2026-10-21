@@ -4,7 +4,9 @@
 -- passa pela Server Action do app. Um login feito direto na API pública do Auth
 -- (POST /auth/v1/token com a chave publicável) também grava 'admin_login'.
 --   - login de admin (qualquer método que não seja a renovação do token): 1
---     registro com o método, no máximo um por minuto;
+--     registro por sessão, com o método, a sessão e o aal (R4-REGRAS-10, D102:
+--     dois logins no mesmo minuto em sessões diferentes são dois registros);
+--     sem sessão nas claims, no máximo um por minuto; nunca mais de 20 por minuto;
 --   - renovação do token (token_refresh), quem não é admin, admin desativado: nada;
 --   - devolve as claims sem mudança e nunca levanta erro (erro bloquearia o login);
 --   - só o papel do Auth (supabase_auth_admin) executa; o navegador não.
@@ -15,7 +17,7 @@ begin;
 \ir helpers/auth.psql
 \ir helpers/fixtures.psql
 
-select plan(11);
+select plan(15);
 
 select tests.create_base_fixture();
 
@@ -53,8 +55,8 @@ select is(
 select is(tests.admin_logins('admin_a'), 1::bigint, 'login de admin por senha grava admin_login (mesmo sem passar pelo app)');
 select is(
   (select diff from public.audit_log where action = 'admin_login' and actor_id = tests.fx('admin_a')),
-  '{"metodo": "password"}'::jsonb,
-  'o registro diz o método do login (e nada informado pelo cliente)');
+  '{"metodo": "password", "aal": "aal1"}'::jsonb,
+  'o registro diz o método e o nível do login (e nada informado pelo cliente)');
 
 select tests.auth_hook('admin_a', 'token_refresh');
 select tests.auth_hook('admin_a', 'password');
@@ -112,7 +114,51 @@ select ok(
 select tests.reset_role();
 select is(
   (select count(*) from public.audit_log where action = 'admin_login'),
-  1::bigint, 'no fim, um único registro de login de admin');
+  1::bigint, 'até aqui, um único registro de login de admin');
+
+-- Por sessão (as claims do Auth levam session_id): duas sessões no mesmo minuto são dois
+-- logins; a mesma sessão (ex.: outro método no mesmo login) não se repete
+create function tests.auth_hook_session(p_user text, p_method text, p_session text)
+returns jsonb
+language plpgsql
+as $$
+declare
+  v_result jsonb;
+begin
+  perform tests.reset_role();
+  perform set_config('role', 'supabase_auth_admin', true);
+  v_result := private.custom_access_token_hook(jsonb_build_object(
+    'user_id', tests.fx(p_user),
+    'authentication_method', p_method,
+    'claims', jsonb_build_object('sub', tests.fx(p_user), 'role', 'authenticated', 'aal', 'aal1',
+                                 'session_id', tests.fx(p_session))
+  ));
+  perform tests.reset_role();
+  return v_result;
+end;
+$$;
+select tests.create_user('admin_s', '[TESTE] Admin S', 'org_a');
+select tests.create_membership('admin_s', 'org_a', null, null, 'admin');
+select tests.auth_hook_session('admin_s', 'password', 'sessao_1');
+select tests.auth_hook_session('admin_s', 'password', 'sessao_2');
+select tests.auth_hook_session('admin_s', 'password', 'sessao_1');
+select tests.auth_hook_session('admin_s', 'token_refresh', 'sessao_3');
+select is(tests.admin_logins('admin_s'), 2::bigint,
+  'duas sessões no mesmo minuto = dois logins; a mesma sessão não se repete; renovação não conta');
+select set_eq(
+  format($$ select diff ->> 'sessao' from public.audit_log where action = 'admin_login' and actor_id = %L $$,
+         tests.fx('admin_s')),
+  array[tests.fx('sessao_1')::text, tests.fx('sessao_2')::text],
+  'cada registro diz a sessão do login');
+select count(*) from (
+  select tests.auth_hook_session('admin_s', 'password', 'flood_' || i) from generate_series(1, 30) as i
+) x;
+select is(tests.admin_logins('admin_s'), 20::bigint, 'contra inundação: no máximo 20 por admin por minuto');
+select is(
+  tests.auth_hook_raw(jsonb_build_object('user_id', tests.fx('admin_s'), 'authentication_method', 'password',
+                                         'claims', jsonb_build_object('session_id', 'não é uuid'))),
+  jsonb_build_object('claims', jsonb_build_object('session_id', 'não é uuid')),
+  'sessão inválida nas claims não derruba o login');
 
 select * from finish();
 rollback;

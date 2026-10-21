@@ -8,12 +8,15 @@
 -- agora, então não serve para "liberar" foto antiga.
 -- Cena: 07:35 abre a tarefa no estoque sem internet; 07:40 tira a foto; 08:05 a
 -- fila sincroniza (no teste, now() = sincronização; a foto tem EXIF now() - 25 min).
+-- R4-INTEGRIDADE-05 (D98): quando o próprio início encerra a tentativa velha de
+-- outra pessoa (vínculo com fim agendado, R3-02), esse encerramento (hora da
+-- sincronização) não é o "fim da tentativa anterior": o início do aparelho vale.
 -- =============================================================================
 begin;
 \ir helpers/auth.psql
 \ir helpers/fixtures.psql
 
-select plan(12);
+select plan(15);
 
 select tests.create_base_fixture();
 -- Janela aberta há 1 h (tests.create_task); foto geral obrigatória
@@ -104,6 +107,36 @@ select ok(
 select ok(
   not exists (select 1 from public.task_attempts where started_at_device > started_at),
   'CHECK: o início do aparelho nunca passa do início no servidor');
+
+-- R4-INTEGRIDADE-05: X (colaboradora do setor) iniciou a tarefa de equipe 50 min antes da
+-- sincronização e o vínculo dela terminou 40 min antes (fim agendado); staff_p1 abriu a tarefa
+-- sem internet 30 min antes e tirou a foto 25 min antes
+select tests.create_user('staff_x', '[TESTE] Colaboradora X', 'org_a');
+insert into public.memberships (id, profile_id, organization_id, store_id, sector_id, role, starts_at, ends_at)
+values (tests.fx('m_staff_x'), tests.fx('staff_x'), tests.fx('org_a'), tests.fx('store_p'), tests.fx('sector_p1'),
+        'staff', now() - interval '30 days', now() - interval '40 minutes');
+select tests.create_task('pass', 'store_p', 'sector_p1', null, p_requires_photo => true, p_items => 1);
+select tests.walk(tests.fx('pass'), 'in_progress');
+update public.tasks set attempt_count = 1 where id = tests.fx('pass');
+insert into public.task_attempts (id, task_id, store_id, attempt_number, performed_by, started_at)
+values (tests.fx('att_x'), tests.fx('pass'), tests.fx('store_p'), 1, tests.fx('staff_x'), now() - interval '50 minutes');
+select is(private.stale_attempt_reason(tests.fx('pass'), tests.fx('staff_x')), 'access_lost',
+  'passagem: a tentativa aberta de X é velha (vínculo terminou)');
+
+select tests.authenticate_as('staff_p1');
+select public.start_attempt(tests.fx('pass'), tests.fx('pass:start'), now() - interval '30 minutes');
+select tests.upload_evidence('pass', 2, 'pass_foto');
+select lives_ok(
+  format($$ select public.register_evidence(%L, null, %L, now() - interval '25 minutes',
+                                             -23.55, -46.63, 8, %L, null, 250000, true, %L) $$,
+         tests.attempt_of('pass', 2), tests.evidence_path('pass', 2, 'pass_foto'), tests.sha('pass-foto'),
+         tests.fx('pass:foto')),
+  'passagem: a foto tirada offline depois de abrir a tarefa é aceita mesmo com o início encerrando a tentativa de X');
+select tests.reset_role();
+select is(
+  (select started_at_device from public.task_attempts where id = tests.attempt_of('pass', 2)),
+  now() - interval '30 minutes',
+  'passagem: o início do aparelho vale (o encerramento feito agora não é o fim da tentativa anterior)');
 
 select * from finish();
 rollback;

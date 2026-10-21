@@ -6,7 +6,11 @@
  *   - R2-FUNC-04: quem deixou de ser o responsável enquanto esperava a trava não inicia a tarefa;
  *   - R2-REGRAS-S6: nem envia (a tentativa dele é encerrada sem envio e o novo responsável inicia);
  *   - R3-FUNCOES-03: a reatribuição numa transação que começou antes de a tentativa ser iniciada
- *     (inclusive um PATCH em lote que esperou trava) encerra a tentativa com o relógio real.
+ *     (inclusive um PATCH em lote que esperou trava) encerra a tentativa com o relógio real;
+ *   - R4-INTEGRIDADE-01: o início no meio de uma mudança de vínculo ou perfil espera o commit e
+ *     recebe 'forbidden' (não fica tentativa aberta de quem saiu);
+ *   - R4-INTEGRIDADE-03: incluir item na rotina enquanto a 1ª tarefa é gerada não deixa dois
+ *     checklists diferentes na mesma versão.
  *
  * Os cenários precisam de dados commitados e de várias sessões (dblink), então não cabem na
  * suíte pgTAP (cada arquivo roda numa transação desfeita no fim). Aqui o teste cria um banco
@@ -55,6 +59,15 @@ const SCENARIOS = [
     file: "passagem-em-transacao-antiga.sql",
     title:
       "reatribuição numa transação iniciada antes da tentativa encerra a tentativa (não falha)",
+  },
+  {
+    file: "inicio-durante-mudanca-de-vinculo.sql",
+    title:
+      "início durante o fim do vínculo, a troca de setor ou a desativação não deixa tentativa aberta",
+  },
+  {
+    file: "versao-da-rotina-em-corrida.sql",
+    title: "item incluído enquanto a 1ª tarefa é gerada não deixa dois checklists na mesma versão",
   },
 ];
 

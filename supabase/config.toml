@@ -165,7 +165,9 @@ site_url = "http://localhost:3000"
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
 additional_redirect_urls = ["http://localhost:3000/**"]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
-jwt_expiry = 3600
+# Éde Gestão: 10 min (D66). O token de acesso continua valendo na API até expirar, mesmo depois de
+# "Sair" ou da troca de senha; o refresh token (que renova a sessão) é revogado na hora.
+jwt_expiry = 600
 # JWT issuer URL. If not set, defaults to auth.external_url.
 # jwt_issuer = ""
 # Path to JWT signing key. DO NOT commit your signing keys file to git.
@@ -186,7 +188,8 @@ enable_manual_linking = false
 minimum_password_length = 8
 # Passwords that do not meet the following requirements will be rejected as weak. Supported values
 # are: `letters_digits`, `lower_upper_letters_digits`, `lower_upper_letters_digits_symbols`
-password_requirements = ""
+# Éde Gestão: pelo menos uma letra (A–Z) e um número (D65); o app valida igual (redefinirSchema).
+password_requirements = "letters_digits"
 
 # Configure passkey sign-ins.
 # [auth.passkey]
@@ -233,9 +236,12 @@ double_confirm_changes = true
 # Éde Gestão: `false`. Usuários são criados pela administração já com e-mail confirmado.
 enable_confirmations = false
 # If enabled, users will need to reauthenticate or have logged in recently to change their password.
-secure_password_change = false
+# Éde Gestão: `true` (D64). Sessão com mais de 24 h precisa de reautenticação para trocar a senha
+# direto na API do Auth (PUT /user); a sessão do link de recuperação é nova e continua podendo.
+secure_password_change = true
 # Controls the minimum amount of time that must pass before sending another signup confirmation or password reset email.
-max_frequency = "1s"
+# Éde Gestão: 60 s (padrão do hospedado). A stack local usa 1 s para os testes E2E (auth-env.mjs).
+max_frequency = "60s"
 # Number of characters used in the email OTP.
 otp_length = 6
 # Number of seconds before the email OTP expires (defaults to 1 hour).
@@ -256,11 +262,18 @@ otp_expiry = 3600
 # subject = "You have been invited"
 # content_path = "./supabase/templates/invite.html"
 
+# Éde Gestão: e-mail de recuperação de senha em pt-BR (D80), só com o link (sem o código de 6
+# dígitos, que o app não usa) e avisando que o link vale no mesmo aparelho e navegador do pedido.
+[auth.email.template.recovery]
+subject = "Crie uma nova senha do Éde Gestão"
+content_path = "./supabase/templates/recuperacao.html"
+
 # Uncomment to customize notification email template
-# [auth.email.notification.password_changed]
-# enabled = true
-# subject = "Your password has been changed"
-# content_path = "./supabase/templates/password_changed_notification.html"
+# Éde Gestão: aviso por e-mail sempre que a senha muda (D64).
+[auth.email.notification.password_changed]
+enabled = true
+subject = "Sua senha do Éde Gestão foi alterada"
+content_path = "./supabase/templates/senha-alterada.html"
 
 [auth.sms]
 # Allow/disallow new user signups via SMS to your project.
@@ -289,9 +302,11 @@ max_frequency = "5s"
 # uri = "pg-functions://postgres/auth/before-user-created-hook"
 
 # This hook runs before a token is issued and allows you to add additional claims based on the authentication method used.
-# [auth.hook.custom_access_token]
-# enabled = true
-# uri = "pg-functions://<database>/<schema>/<hook_name>"
+# Éde Gestão: registra no audit_log todo login de admin, inclusive feito direto na API pública do
+# Auth (D79). A função não muda as claims e nunca levanta erro; só o papel do Auth a executa.
+[auth.hook.custom_access_token]
+enabled = true
+uri = "pg-functions://postgres/private/custom_access_token_hook"
 
 # Configure one of the supported SMS providers: `twilio`, `twilio_verify`, `messagebird`, `textlocal`, `vonage`.
 [auth.sms.twilio]

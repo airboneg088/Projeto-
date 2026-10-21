@@ -4,7 +4,10 @@
 //   2. faz login com e-mail e senha (grant_type=password);
 //   3. chama /rest/v1/ com o access token (espera 200);
 //   4. pede recuperação de senha, confere o .eml em .local/mail e abre o link do e-mail;
-//   5. apaga o usuário.
+//   5. desativa o usuário: exclusão lógica no Auth (should_soft_delete) e perfil
+//      inativo, e confere que o login passa a ser recusado. Pessoas nunca são
+//      apagadas (profiles.id é ON DELETE RESTRICT para não perder histórico), então
+//      a exclusão física do Auth falharia; nenhum usuário de teste fica utilizável.
 // Uso: node scripts/local-stack/smoke.mjs
 
 import { readdirSync, readFileSync } from "node:fs";
@@ -25,13 +28,14 @@ function step(msg) {
   console.log(`[smoke] ${msg}`);
 }
 
-async function call(method, path, { key = anon, token, body } = {}) {
+async function call(method, path, { key = anon, token, body, headers = {} } = {}) {
   const res = await fetch(`${API}${path}`, {
     method,
     headers: {
       apikey: key,
       ...(token ? { authorization: `Bearer ${token}` } : {}),
       ...(body ? { "content-type": "application/json" } : {}),
+      ...headers,
     },
     body: body ? JSON.stringify(body) : undefined,
   });
@@ -117,14 +121,37 @@ try {
   );
   step(`link de recuperação válido: 303 -> ${location.split("#")[0]}#access_token=...`);
 } finally {
-  if (userId) {
-    const del = await call("DELETE", `/auth/v1/admin/users/${userId}`, { key: service });
-    if (del.status === 200) step("usuário apagado");
-    else {
-      console.error(`[smoke] FALHOU ao apagar usuário (${del.status})`, del.text);
-      process.exitCode = 1;
-    }
+  if (userId) await deactivateUser(userId);
+}
+
+// Pessoas não são apagadas (o perfil guarda o histórico): exclusão lógica no Auth
+// (login impossível, e-mail embaralhado) e perfil inativo (sem acesso a nada).
+async function deactivateUser(id) {
+  const fail = (msg, extra) => {
+    console.error(`[smoke] FALHOU ao desativar o usuário de teste: ${msg}`, extra ?? "");
+    process.exitCode = 1;
+  };
+  const del = await call("DELETE", `/auth/v1/admin/users/${id}`, {
+    key: service,
+    body: { should_soft_delete: true },
+  });
+  if (del.status !== 200) return fail(`exclusão lógica no Auth (${del.status})`, del.text);
+
+  const profile = await call("PATCH", `/rest/v1/profiles?id=eq.${id}`, {
+    key: service,
+    body: { status: "inactive" },
+    headers: { prefer: "return=representation" },
+  });
+  if (profile.status !== 200 || profile.json?.[0]?.status !== "inactive") {
+    return fail(`perfil inativo (${profile.status})`, profile.text);
   }
+
+  const relogin = await call("POST", "/auth/v1/token?grant_type=password", {
+    body: { email, password },
+  });
+  if (relogin.status !== 400)
+    return fail(`login depois da desativação (veio ${relogin.status})`, relogin.text);
+  step("usuário de teste desativado (exclusão lógica no Auth, perfil inativo, login recusado)");
 }
 
 if (!process.exitCode) step("tudo certo");
